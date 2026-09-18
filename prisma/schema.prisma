@@ -1,15 +1,169 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+enum Role {
+  SUPER_ADMIN
+  OWNER
+  MANAGER
+  MEMBER
+}
+
+enum ProjectStatus {
+  em_andamento
+  concluido
+  arquivado
+}
+
+enum TaskStatus {
+  todo
+  doing
+  done
+}
+
+enum InvoiceStatus {
+  pendente
+  pago
+  cancelado
+}
+
+model Tenant {
+  id        String   @id @default(uuid())
+  name      String
+  plan      String   @default("freemium")
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  users       User[]
+  clients     Client[]
+  projects    Project[]
+  tasks       Task[]
+  timeEntries TimeEntry[]
+  invoices    Invoice[]
+
+  @@map("tenants")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  tenantId  String
+  email     String   @unique
+  name      String
+  avatarUrl String?
+  role      Role     @default(MEMBER)
+  createdAt DateTime @default(now())
+
+  tenant      Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  settings    UserSettings?
+  timeEntries TimeEntry[]
+
+  @@map("users")
+}
+
+// Configurações individuais do usuário
+model UserSettings {
+  id            String  @id @default(uuid())
+  userId        String  @unique
+  hourlyRate    Decimal @default(0.00) @db.Decimal(10, 2)
+  currency      String  @default("BRL")
+  theme         String  @default("dark")
+  pomodoroWork  Int     @default(25)
+  pomodoroBreak Int     @default(5)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_settings")
+}
+
+model Client {
+  id        String   @id @default(uuid())
+  tenantId  String
+  name      String
+  contact   String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  projects Project[]
+  invoices Invoice[]
+
+  @@map("clients")
+}
+
+model Project {
+  id          String        @id @default(uuid())
+  tenantId    String
+  clientId    String?
+  name        String
+  budgetHours Decimal?      @db.Decimal(10, 2)
+  status      ProjectStatus @default(em_andamento)
+  createdAt   DateTime      @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  client      Client?     @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  tasks       Task[]
+  timeEntries TimeEntry[]
+
+  @@map("projects")
+}
+
+model Task {
+  id             String     @id @default(uuid())
+  tenantId       String
+  projectId      String
+  title          String
+  status         TaskStatus @default(todo)
+  estimatedHours Decimal?   @db.Decimal(10, 2)
+  createdAt      DateTime   @default(now())
+
+  tenant      Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  project     Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  timeEntries TimeEntry[]
+
+  @@map("tasks")
+}
+
+model TimeEntry {
+  id          String    @id @default(uuid())
+  tenantId    String
+  userId      String
+  projectId   String?
+  taskId      String?
+  description String?
+  start       DateTime
+  end         DateTime?
+  duration    Int?
+  billable    Boolean   @default(true)
+
+  tenant  Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  task    Task?    @relation(fields: [taskId], references: [id], onDelete: SetNull)
+
+  @@map("time_entries")
+}
+
+model Invoice {
+  id         String        @id @default(uuid())
+  tenantId   String
+  clientId   String
+  monthRef   String
+  totalHours Decimal       @db.Decimal(10, 2)
+  totalValue Decimal       @db.Decimal(10, 2)
+  status     InvoiceStatus @default(pendente)
+  aiSummary  String?       @db.Text
+  pdfUrl     String?
+  createdAt  DateTime      @default(now())
+  paidAt     DateTime?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@map("invoices")
 }
