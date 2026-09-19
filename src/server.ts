@@ -4,9 +4,10 @@ import cookie from "@fastify/cookie";
 import jwt from "@fastify/jwt";
 import dotenv from "dotenv";
 import { Prisma } from "@prisma/client";
-import { AppError } from "./errors/app-error.js";
-import type { ApiError } from "./types/api.js";
-import { authRoutes } from "./routes/auth.routes.js";
+import { AppError } from "./errors/app-error";
+import type { ApiError } from "./types/api";
+import { authRoutes } from "./routes/auth.routes";
+import { timeEntryRoutes } from "./routes/time-entry.routes";
 
 dotenv.config();
 
@@ -14,6 +15,8 @@ const jwtSecret = process.env.JWT_SECRET;
 if (!jwtSecret) {
   throw new Error("Variável de ambiente JWT_SECRET não definida no .env");
 }
+
+//#region Fastify App Initialization
 
 export const app = Fastify({
   logger:
@@ -49,7 +52,16 @@ app.register(jwt, {
   },
 });
 
+//#endregion
+
+//#region Routes
+
 app.register(authRoutes);
+app.register(timeEntryRoutes);
+
+//#endregion
+
+//#region Error Handler
 
 app.setErrorHandler(
   (error: FastifyError, request: FastifyRequest, reply: FastifyReply) => {
@@ -116,6 +128,9 @@ app.setErrorHandler(
   },
 );
 
+//#endregion
+
+//#region Health Check
 app.get("/ping", async () => {
   return {
     success: true,
@@ -126,8 +141,11 @@ app.get("/ping", async () => {
   };
 });
 
-const port = Number(process.env.PORT) || 3333;
+//#endregion
 
+//#region Start Server
+
+const port = Number(process.env.PORT) || 3333;
 app
   .listen({ port, host: "0.0.0.0" })
   .then(() => {
@@ -137,3 +155,5 @@ app
     app.log.error(err);
     process.exit(1);
   });
+
+//#endregion

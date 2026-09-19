@@ -1,7 +1,7 @@
 import { FastifyReply, FastifyRequest } from "fastify";
 import { OAuth2Client } from "google-auth-library";
-import { UserModel } from "../models/user.model.js";
-import { AppError } from "../errors/app-error.js";
+import { UserModel } from "../models/user.model";
+import { AppError } from "../errors/app-error";
 
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
@@ -72,14 +72,12 @@ export class AuthController {
 
     const token = await reply.jwtSign(
       {
+        sub: user.id,
         tenantId: user.tenantId,
         role: user.role,
       },
       {
-        sign: {
-          sub: user.id,
-          expiresIn: "7d",
-        },
+        expiresIn: "7d",
       },
     );
 

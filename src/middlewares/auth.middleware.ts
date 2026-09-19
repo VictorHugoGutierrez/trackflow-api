@@ -1,5 +1,5 @@
 import { FastifyReply, FastifyRequest } from "fastify";
-import { AppError } from "../errors/app-error.js";
+import { AppError } from "../errors/app-error";
 
 export async function authMiddleware(
   request: FastifyRequest,

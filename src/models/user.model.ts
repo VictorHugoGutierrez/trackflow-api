@@ -1,4 +1,4 @@
-import { prisma } from "../lib/prisma.js";
+import { prisma } from "../lib/prisma";
 import { Role } from "@prisma/client";
 
 interface UpsertGoogleUserInput {
