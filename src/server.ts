@@ -8,6 +8,7 @@ import { AppError } from "./errors/app-error";
 import type { ApiError } from "./types/api";
 import { authRoutes } from "./routes/auth.routes";
 import { timeEntryRoutes } from "./routes/time-entry.routes";
+import { adminRoutes } from "./routes/admin.routes";
 
 dotenv.config();
 
@@ -58,6 +59,7 @@ app.register(jwt, {
 
 app.register(authRoutes);
 app.register(timeEntryRoutes);
+app.register(adminRoutes);
 
 //#endregion
 
