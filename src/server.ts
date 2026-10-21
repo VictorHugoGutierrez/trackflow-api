@@ -116,8 +116,8 @@ app.use((error: any, _req: Request, res: Response, _next: NextFunction) => {
 
 const port = Number(process.env.PORT) || 3333;
 
-if (process.env.NODE_ENV == "development") {
-  app.listen(port, () => {
+if (process.env.NODE_ENV !== "production") {
+  app.listen(port, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${port}`);
   });
 }
