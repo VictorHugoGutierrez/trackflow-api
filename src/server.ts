@@ -116,8 +116,12 @@ app.use((error: any, _req: Request, res: Response, _next: NextFunction) => {
 
 const port = Number(process.env.PORT) || 3333;
 
-app.listen(port, () => {
-  console.log(`Server running on http://localhost:${port}`);
-});
+if (process.env.NODE_ENV == "development") {
+  app.listen(port, () => {
+    console.log(`Server running on http://localhost:${port}`);
+  });
+}
 
 //#endregion
+
+export default app;
