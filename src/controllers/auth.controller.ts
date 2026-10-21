@@ -1,8 +1,8 @@
 import { Request, Response } from "express";
 import { OAuth2Client } from "google-auth-library";
 import jwt from "jsonwebtoken";
-import { UserModel } from "../models/user.model";
-import { AppError } from "../errors/app-error";
+import { UserModel } from "../models/user.model.js";
+import { AppError } from "../errors/app-error.js";
 
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
@@ -11,7 +11,10 @@ interface GoogleAuthBody {
 }
 
 export class AuthController {
-  static async googleLogin(req: Request<{}, {}, GoogleAuthBody>, res: Response) {
+  static async googleLogin(
+    req: Request<{}, {}, GoogleAuthBody>,
+    res: Response,
+  ) {
     const { idToken } = req.body;
 
     if (!idToken) {

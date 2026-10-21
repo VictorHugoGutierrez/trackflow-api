@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
-import { AdminModel } from "../models/admin.model";
-import { AppError } from "../errors/app-error";
+import { AdminModel } from "../models/admin.model.js";
+import { AppError } from "../errors/app-error.js";
 
 interface UpdateTenantParams {
   id: string;

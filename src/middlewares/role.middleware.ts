@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import { AppError } from "../errors/app-error";
+import { AppError } from "../errors/app-error.js";
 
 export function requireRole(allowedRoles: string[]) {
   return (req: Request, _res: Response, next: NextFunction) => {

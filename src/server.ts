@@ -3,12 +3,12 @@ import cors from "cors";
 import cookieParser from "cookie-parser";
 import dotenv from "dotenv";
 import { Prisma } from "@prisma/client";
-import { AppError } from "./errors/app-error";
-import type { ApiError } from "./types/api";
-import { authRoutes } from "./routes/auth.routes";
-import { timeEntryRoutes } from "./routes/time-entry.routes";
-import { adminRoutes } from "./routes/admin.routes";
-import { clientRoutes } from "./routes/client.routes";
+import { AppError } from "./errors/app-error.js";
+import type { ApiError } from "./types/api.js";
+import { authRoutes } from "./routes/auth.routes.js";
+import { timeEntryRoutes } from "./routes/time-entry.routes.js";
+import { adminRoutes } from "./routes/admin.routes.js";
+import { clientRoutes } from "./routes/client.routes.js";
 
 dotenv.config();
 
