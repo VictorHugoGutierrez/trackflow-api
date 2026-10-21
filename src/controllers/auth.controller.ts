@@ -1,5 +1,6 @@
-import { FastifyReply, FastifyRequest } from "fastify";
+import { Request, Response } from "express";
 import { OAuth2Client } from "google-auth-library";
+import jwt from "jsonwebtoken";
 import { UserModel } from "../models/user.model";
 import { AppError } from "../errors/app-error";
 
@@ -10,11 +11,8 @@ interface GoogleAuthBody {
 }
 
 export class AuthController {
-  static async googleLogin(
-    request: FastifyRequest<{ Body: GoogleAuthBody }>,
-    reply: FastifyReply,
-  ) {
-    const { idToken } = request.body;
+  static async googleLogin(req: Request<{}, {}, GoogleAuthBody>, res: Response) {
+    const { idToken } = req.body;
 
     if (!idToken) {
       throw new AppError(
@@ -70,12 +68,19 @@ export class AuthController {
       );
     }
 
-    const token = await reply.jwtSign(
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret) {
+      throw new Error("Variável de ambiente JWT_SECRET não definida no .env");
+    }
+
+    const token = jwt.sign(
       {
         sub: user.id,
         tenantId: user.tenantId,
         role: user.role,
+        email: user.email,
       },
+      jwtSecret,
       {
         expiresIn: "7d",
       },
@@ -83,15 +88,15 @@ export class AuthController {
 
     const isProduction = process.env.NODE_ENV === "production";
 
-    reply.setCookie("trackflow_session", token, {
+    res.cookie("trackflow_session", token, {
       path: "/",
       httpOnly: true,
       secure: isProduction,
       sameSite: isProduction ? "none" : "lax",
-      maxAge: 7 * 24 * 60 * 60,
+      maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
-    return reply.status(200).send({
+    return res.status(200).json({
       success: true,
       data: {
         user: {
@@ -110,20 +115,18 @@ export class AuthController {
     });
   }
 
-  static async logout(request: FastifyRequest, reply: FastifyReply) {
-    reply.clearCookie("trackflow_session", { path: "/" });
-    return reply.send({
+  static async logout(_req: Request, res: Response) {
+    res.clearCookie("trackflow_session", { path: "/" });
+    return res.json({
       success: true,
       data: { message: "Sessão encerrada com sucesso." },
     });
   }
 
-  static async me(request: FastifyRequest, reply: FastifyReply) {
-    const { sub: userId } = request.user as { sub: string };
+  static async me(req: Request, res: Response) {
+    const user = await UserModel.findByEmail((req.user as any)?.email);
 
-    const user = await UserModel.findByEmail((request.user as any).email);
-
-    return reply.send({
+    return res.json({
       success: true,
       data: user,
     });

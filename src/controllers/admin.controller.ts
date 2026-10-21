@@ -1,7 +1,6 @@
-import { FastifyReply, FastifyRequest } from "fastify";
+import { Request, Response } from "express";
 import { AdminModel } from "../models/admin.model";
 import { AppError } from "../errors/app-error";
-import { request } from "http";
 
 interface UpdateTenantParams {
   id: string;
@@ -15,27 +14,24 @@ interface UpdateTenantBody {
 
 export class AdminController {
   // GET /api/admin/metrics
-  static async getMetrics(request: FastifyRequest, reply: FastifyReply) {
+  static async getMetrics(_req: Request, res: Response) {
     const metrics = await AdminModel.getMetrics();
-    return reply.send({ success: true, data: metrics });
+    return res.json({ success: true, data: metrics });
   }
 
   // GET /api/admin/tenants
-  static async listTenants(request: FastifyRequest, reply: FastifyReply) {
+  static async listTenants(_req: Request, res: Response) {
     const tenants = await AdminModel.listTenants();
-    return reply.send({ success: true, data: tenants });
+    return res.json({ success: true, data: tenants });
   }
 
   // PATCH /api/admin/tenants/:id
   static async updateTenant(
-    request: FastifyRequest<{
-      Params: UpdateTenantParams;
-      Body: UpdateTenantBody;
-    }>,
-    reply: FastifyReply,
+    req: Request<UpdateTenantParams, {}, UpdateTenantBody>,
+    res: Response,
   ) {
-    const { id } = request.params;
-    const body = request.body || {};
+    const { id } = req.params;
+    const body = req.body || {};
 
     if (
       body.plan === undefined &&
@@ -55,6 +51,6 @@ export class AdminController {
       active: body.active,
     });
 
-    return reply.send({ success: true, data: updated });
+    return res.json({ success: true, data: updated });
   }
 }

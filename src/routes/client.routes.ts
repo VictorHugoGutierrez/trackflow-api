@@ -1,12 +1,12 @@
-import { FastifyInstance } from "fastify";
+import { Router } from "express";
 import { ClientController } from "../controllers/client.controller.js";
 import { authMiddleware } from "../middlewares/auth.middleware.js";
 
+export const clientRoutes = Router();
 
-export async function clientRoutes(app: FastifyInstance) {
-  app.addHook("onRequest", authMiddleware);
-  app.post("/clients", ClientController.createClient);
-  app.get("/clients", ClientController.getClients);
-  app.patch("/clients/:id", ClientController.alterClient);
-  app.delete("/clients/:id", ClientController.deleteClient);
-}
+clientRoutes.use(authMiddleware);
+
+clientRoutes.post("/clients", ClientController.createClient);
+clientRoutes.get("/clients", ClientController.getClients);
+clientRoutes.patch("/clients/:id", ClientController.alterClient);
+clientRoutes.delete("/clients/:id", ClientController.deleteClient);

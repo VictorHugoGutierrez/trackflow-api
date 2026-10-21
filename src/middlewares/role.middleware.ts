@@ -1,9 +1,9 @@
-import { FastifyReply, FastifyRequest } from "fastify";
+import { Request, Response, NextFunction } from "express";
 import { AppError } from "../errors/app-error";
 
 export function requireRole(allowedRoles: string[]) {
-  return async (request: FastifyRequest, reply: FastifyReply) => {
-    const user = request.user;
+  return (req: Request, _res: Response, next: NextFunction) => {
+    const user = req.user;
 
     if (!user || !allowedRoles.includes(user.role)) {
       throw new AppError(
@@ -12,5 +12,7 @@ export function requireRole(allowedRoles: string[]) {
         403,
       );
     }
+
+    return next();
   };
 }

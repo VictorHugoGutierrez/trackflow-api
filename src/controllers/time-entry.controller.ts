@@ -1,4 +1,4 @@
-import { FastifyReply, FastifyRequest } from "fastify";
+import { Request, Response } from "express";
 import { TimeEntryModel } from "../models/time-entry.model.js";
 import { AppError } from "../errors/app-error.js";
 
@@ -21,12 +21,9 @@ interface EntryParams {
 }
 
 export class TimeEntryController {
-  static async start(
-    request: FastifyRequest<{ Body: StartBody }>,
-    reply: FastifyReply,
-  ) {
-    const { tenantId, sub: userId } = request.user;
-    const body = request.body || {};
+  static async start(req: Request<{}, {}, StartBody>, res: Response) {
+    const { tenantId, sub: userId } = req.user!;
+    const body = req.body || {};
 
     const active = await TimeEntryModel.findActive(tenantId, userId);
     if (active) {
@@ -47,19 +44,16 @@ export class TimeEntryController {
       billable: body.billable,
     });
 
-    return reply.status(201).send({
+    return res.status(201).json({
       success: true,
       data: entry,
     });
   }
 
-  static async stop(
-    request: FastifyRequest<{ Params: EntryParams; Body: StopBody }>,
-    reply: FastifyReply,
-  ) {
-    const { tenantId, sub: userId } = request.user;
-    const { id } = request.params;
-    const body = request.body || {};
+  static async stop(req: Request<EntryParams, {}, StopBody>, res: Response) {
+    const { tenantId, sub: userId } = req.user!;
+    const { id } = req.params;
+    const body = req.body || {};
 
     const updated = await TimeEntryModel.stop({
       id,
@@ -79,29 +73,29 @@ export class TimeEntryController {
       );
     }
 
-    return reply.send({
+    return res.json({
       success: true,
       data: updated,
     });
   }
 
-  static async getActive(request: FastifyRequest, reply: FastifyReply) {
-    const { tenantId, sub: userId } = request.user;
+  static async getActive(req: Request, res: Response) {
+    const { tenantId, sub: userId } = req.user!;
 
     const active = await TimeEntryModel.findActive(tenantId, userId);
 
-    return reply.send({
+    return res.json({
       success: true,
       data: active,
     });
   }
 
-  static async list(request: FastifyRequest, reply: FastifyReply) {
-    const { tenantId, sub: userId } = request.user;
+  static async list(req: Request, res: Response) {
+    const { tenantId, sub: userId } = req.user!;
 
     const entries = await TimeEntryModel.listRecent(tenantId, userId);
 
-    return reply.send({
+    return res.json({
       success: true,
       data: entries,
     });

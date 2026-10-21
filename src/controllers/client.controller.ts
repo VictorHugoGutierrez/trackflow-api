@@ -1,4 +1,4 @@
-import { FastifyReply, FastifyRequest } from "fastify";
+import { Request, Response } from "express";
 import { ClientModel } from "../models/client.model.js";
 import { AppError } from "../errors/app-error.js";
 
@@ -13,52 +13,68 @@ interface UpdateClientBody {
   active?: boolean;
 }
 
+interface ClientParams {
+  id: string;
+}
+
 export class ClientController {
-    static async createClient(req: FastifyRequest<{Body: CreateClientBody}>, res: FastifyReply){
-        const data = req.body
-        const tenantId = req.user.tenantId
+  static async createClient(
+    req: Request<{}, {}, CreateClientBody>,
+    res: Response,
+  ) {
+    const data = req.body;
+    const tenantId = req.user!.tenantId;
 
-        if (!data.name) {
-            throw new AppError("NAME_REQUIRED", "O campo 'name' é obrigatório", 400);
-        }
-
-        return res.status(201).send(await ClientModel.createClient(tenantId, data));
+    if (!data.name) {
+      throw new AppError("NAME_REQUIRED", "O campo 'name' é obrigatório", 400);
     }
 
-    static async getClients(req: FastifyRequest, res: FastifyReply){
-        const tenantId = req.user.tenantId
+    const client = await ClientModel.createClient(tenantId, data);
+    return res.status(201).json(client);
+  }
 
-        return res.status(200).send(await ClientModel.findAllByTenant(tenantId));
+  static async getClients(req: Request, res: Response) {
+    const tenantId = req.user!.tenantId;
+
+    const clients = await ClientModel.findAllByTenant(tenantId);
+    return res.status(200).json(clients);
+  }
+
+  static async deleteClient(req: Request<ClientParams>, res: Response) {
+    const tenantId = req.user!.tenantId;
+    const { id } = req.params;
+
+    const result = await ClientModel.deleteClient(tenantId, id);
+
+    if (result.count === 0) {
+      throw new AppError(
+        "CLIENT_NOT_FOUND",
+        "Cliente não encontrado ou sem permissão para deletar",
+        404,
+      );
     }
 
-    static async deleteClient(req: FastifyRequest<{Params: {id: string}}>, res: FastifyReply){
-        const tenantId = req.user.tenantId
-        const { id } = req.params
+    return res.status(204).send();
+  }
 
-        const result =  await ClientModel.deleteClient(tenantId, id);
-
-        if(result.count === 0 ){
-            throw new AppError("CLIENT_NOT_FOUND","Cliente não encontrado ou sem permissão para deletar", 404);
-        }
-
-        return res.status(204).send()
-    }
-
-    static async alterClient(
-    req: FastifyRequest<{ Params: { id: string }; Body: UpdateClientBody }>,
-    res: FastifyReply
+  static async alterClient(
+    req: Request<ClientParams, {}, UpdateClientBody>,
+    res: Response,
   ) {
     const { id } = req.params;
-    const data = req.body; 
-    const tenantId = req.user.tenantId;
+    const data = req.body;
+    const tenantId = req.user!.tenantId;
 
     const result = await ClientModel.alterClient(tenantId, id, data);
 
     if (result.count === 0) {
-      throw new AppError("CLIENT_NOT_FOUND","Cliente não encontrado ou sem permissão para alterar", 404);
-
+      throw new AppError(
+        "CLIENT_NOT_FOUND",
+        "Cliente não encontrado ou sem permissão para alterar",
+        404,
+      );
     }
 
-    return res.status(200).send({ message: "Cliente atualizado com sucesso" });
+    return res.status(200).json({ message: "Cliente atualizado com sucesso" });
   }
 }

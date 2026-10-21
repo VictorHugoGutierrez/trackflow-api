@@ -1,7 +1,7 @@
-import { FastifyInstance } from "fastify";
+import { Router } from "express";
 import { AuthController } from "../controllers/auth.controller";
 
-export async function authRoutes(app: FastifyInstance) {
-  app.post("/api/auth/google", AuthController.googleLogin);
-  app.post("/api/auth/logout", AuthController.logout);
-}
+export const authRoutes = Router();
+
+authRoutes.post("/api/auth/google", AuthController.googleLogin);
+authRoutes.post("/api/auth/logout", AuthController.logout);

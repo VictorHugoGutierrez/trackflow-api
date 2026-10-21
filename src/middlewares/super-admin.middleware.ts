@@ -1,11 +1,12 @@
-import { FastifyReply, FastifyRequest } from "fastify";
+import { Request, Response, NextFunction } from "express";
 import { AppError } from "../errors/app-error";
 
-export async function superAdminMiddleware(
-  request: FastifyRequest,
-  reply: FastifyReply,
+export function superAdminMiddleware(
+  req: Request,
+  _res: Response,
+  next: NextFunction,
 ) {
-  const user = request.user;
+  const user = req.user;
 
   if (!user || (user.role as string) !== "SUPER_ADMIN") {
     throw new AppError(
@@ -14,4 +15,6 @@ export async function superAdminMiddleware(
       403,
     );
   }
+
+  return next();
 }
