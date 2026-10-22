@@ -56,6 +56,17 @@ app.use(timeEntryRoutes);
 app.use(adminRoutes);
 app.use(clientRoutes);
 
+// Fallback 404 para rotas inexistentes
+app.use((_req: Request, res: Response) => {
+  return res.status(404).json({
+    success: false,
+    error: {
+      code: "NOT_FOUND",
+      message: "Rota não encontrada.",
+    },
+  });
+});
+
 //#endregion
 
 //#region Error Handler
