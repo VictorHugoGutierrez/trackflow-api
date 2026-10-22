@@ -5,8 +5,7 @@ import { superAdminMiddleware } from "../middlewares/super-admin.middleware.js";
 
 export const adminRoutes = Router();
 
-adminRoutes.use(authMiddleware);
-adminRoutes.use(superAdminMiddleware);
+adminRoutes.use("/api/admin", authMiddleware, superAdminMiddleware);
 
 adminRoutes.get("/api/admin/metrics", AdminController.getMetrics);
 adminRoutes.get("/api/admin/tenants", AdminController.listTenants);

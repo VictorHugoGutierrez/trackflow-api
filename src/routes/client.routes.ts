@@ -4,9 +4,9 @@ import { authMiddleware } from "../middlewares/auth.middleware.js";
 
 export const clientRoutes = Router();
 
-clientRoutes.use(authMiddleware);
+clientRoutes.use("api/clients", authMiddleware);
 
-clientRoutes.post("/clients", ClientController.createClient);
-clientRoutes.get("/clients", ClientController.getClients);
-clientRoutes.patch("/clients/:id", ClientController.alterClient);
-clientRoutes.delete("/clients/:id", ClientController.deleteClient);
+clientRoutes.post("api/clients", ClientController.createClient);
+clientRoutes.get("api/clients", ClientController.getClients);
+clientRoutes.patch("api/clients/:id", ClientController.alterClient);
+clientRoutes.delete("api/clients/:id", ClientController.deleteClient);
