@@ -37,7 +37,7 @@ app.use(express.urlencoded({ extended: true }));
 
 //#region Health Check
 
-app.get("/ping", (_req: Request, res: Response) => {
+app.get(["/ping", "/api/ping"], (_req: Request, res: Response) => {
   return res.json({
     success: true,
     data: {
