@@ -8,7 +8,7 @@ interface CreateClientBody {
 }
 
 interface UpdateClientBody {
-  name?: string;
+  name: string;
   contact?: string;
   active?: boolean;
 }
@@ -29,7 +29,11 @@ export class ClientController {
       throw new AppError("NAME_REQUIRED", "O campo 'name' é obrigatório", 400);
     }
 
-    const client = await ClientModel.createClient(tenantId, data);
+    const client = await ClientModel.createClient({
+      ...data,
+      tenantId,
+    });
+
     return res.status(201).json(client);
   }
 
@@ -44,7 +48,7 @@ export class ClientController {
     const tenantId = req.user!.tenantId;
     const { id } = req.params;
 
-    const result = await ClientModel.deleteClient(tenantId, id);
+    const result = await ClientModel.deleteClient({ tenantId, id });
 
     if (result.count === 0) {
       throw new AppError(
@@ -56,7 +60,6 @@ export class ClientController {
 
     return res.status(204).send();
   }
-
   static async alterClient(
     req: Request<ClientParams, {}, UpdateClientBody>,
     res: Response,
@@ -65,7 +68,15 @@ export class ClientController {
     const data = req.body;
     const tenantId = req.user!.tenantId;
 
-    const result = await ClientModel.alterClient(tenantId, id, data);
+    if (!data.name) {
+      throw new AppError("NAME_REQUIRED", "O campo 'name' é obrigatório", 400);
+    }
+
+    const result = await ClientModel.alterClient({
+      id,
+      tenantId,
+      ...data,
+    });
 
     if (result.count === 0) {
       throw new AppError(
