@@ -8,7 +8,7 @@ interface CreateClientBody {
 }
 
 interface UpdateClientBody {
-  name: string;
+  name?: string;
   contact?: string;
   active?: boolean;
 }
@@ -68,14 +68,10 @@ export class ClientController {
     const data = req.body;
     const tenantId = req.user!.tenantId;
 
-    if (!data.name) {
-      throw new AppError("NAME_REQUIRED", "O campo 'name' é obrigatório", 400);
-    }
-
     const result = await ClientModel.alterClient({
-      id,
-      tenantId,
       ...data,
+      id,
+      tenantId
     });
 
     if (result.count === 0) {

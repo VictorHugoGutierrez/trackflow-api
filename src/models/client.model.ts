@@ -9,7 +9,7 @@ interface CreateClientInput{
 interface AlterClientInput{
     id: string,
     tenantId: string,
-    name: string,
+    name?: string,
     contact?: string,
     active?: boolean
 }
