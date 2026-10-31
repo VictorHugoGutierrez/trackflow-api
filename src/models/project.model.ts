@@ -16,7 +16,7 @@ interface AlterProjectInput {
   budgetHours?: number;
   status?: ProjectStatus;
   clientId?: string;
-}
+} 
 
 interface DeleteProjectInput{
   tenantId: string;
