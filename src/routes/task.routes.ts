@@ -6,7 +6,7 @@ export const taskRoutes = Router();
 
 taskRoutes.use(authMiddleware);
 
-taskRoutes.post("/tasks", TaskController.createTask);
-taskRoutes.get("/tasks", TaskController.getTasks);
-taskRoutes.patch("/tasks/:id", TaskController.alterTask);
-taskRoutes.delete("/tasks/:id", TaskController.deleteTask);
+taskRoutes.post("/api/tasks", TaskController.createTask);
+taskRoutes.get("/api/tasks", TaskController.getTasks);
+taskRoutes.patch("/api/tasks/:id", TaskController.alterTask);
+taskRoutes.delete("/api/tasks/:id", TaskController.deleteTask);

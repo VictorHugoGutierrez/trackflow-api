@@ -6,7 +6,7 @@ export const timeEntryRoutes = Router();
 
 timeEntryRoutes.use(authMiddleware);
 
-timeEntryRoutes.post("/time-entries/start", TimeEntryController.start);
-timeEntryRoutes.patch("/time-entries/:id/stop", TimeEntryController.stop);
-timeEntryRoutes.get("/time-entries/active", TimeEntryController.getActive);
-timeEntryRoutes.get("/time-entries", TimeEntryController.list);
+timeEntryRoutes.post("/api/time-entries/start", TimeEntryController.start);
+timeEntryRoutes.patch("/api/time-entries/:id/stop", TimeEntryController.stop);
+timeEntryRoutes.get("/api/time-entries/active", TimeEntryController.getActive);
+timeEntryRoutes.get("/api/time-entries", TimeEntryController.list);

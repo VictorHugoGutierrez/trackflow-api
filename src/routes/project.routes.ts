@@ -6,7 +6,7 @@ export const projectRoutes = Router();
 
 projectRoutes.use(authMiddleware);
 
-projectRoutes.post("/projects", ProjectController.createProject);
-projectRoutes.get("/projects", ProjectController.getProjects);
-projectRoutes.patch("/projects/:id", ProjectController.alterProject);
-projectRoutes.delete("/projects/:id", ProjectController.deleteProject);
+projectRoutes.post("/api/projects", ProjectController.createProject);
+projectRoutes.get("/api/projects", ProjectController.getProjects);
+projectRoutes.patch("/api/projects/:id", ProjectController.alterProject);
+projectRoutes.delete("/api/projects/:id", ProjectController.deleteProject);

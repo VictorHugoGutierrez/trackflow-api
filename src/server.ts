@@ -53,12 +53,12 @@ app.get("/ping", (_req: Request, res: Response) => {
 
 //#region Routes
 
-app.use("/api",authRoutes);
-app.use("/api",timeEntryRoutes);
-app.use("/api",adminRoutes);
-app.use("/api",clientRoutes);
-app.use("/api",projectRoutes);
-app.use("/api",taskRoutes);
+app.use(authRoutes);
+app.use(timeEntryRoutes);
+app.use(clientRoutes);
+app.use(projectRoutes);
+app.use(taskRoutes);
+app.use(adminRoutes);
 
 //#endregion
 
