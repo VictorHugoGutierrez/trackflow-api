@@ -34,14 +34,14 @@ export class ClientController {
       tenantId,
     });
 
-    return res.status(201).json(client);
+    return res.status(201).json({ success: true, data: client });
   }
 
   static async getClients(req: Request, res: Response) {
     const tenantId = req.user!.tenantId;
 
     const clients = await ClientModel.findAllByTenant(tenantId);
-    return res.status(200).json(clients);
+    return res.status(200).json({ success: true, data: clients });
   }
 
   static async deleteClient(req: Request<ClientParams>, res: Response) {
@@ -82,6 +82,9 @@ export class ClientController {
       );
     }
 
-    return res.status(200).json({ message: "Cliente atualizado com sucesso" });
+    return res.status(200).json({
+      success: true,
+      data: { message: "Cliente atualizado com sucesso" },
+    });
   }
 }

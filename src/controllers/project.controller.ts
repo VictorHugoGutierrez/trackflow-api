@@ -39,17 +39,17 @@ export class ProjectController{
                 tenantId,
               });
           
-              return res.status(201).json(project);
+              return res.status(201).json({ success: true, data: project });
         }
 
     static async getProjects(req: Request, res: Response) {
         const tenantId = req.user!.tenantId;
     
         const project = await ProjectModel.findAllByTenant(tenantId);
-        return res.status(200).json(project);
+        return res.status(200).json({ success: true, data: project });
       }
 
-    static async deleteProjects(req: Request<ProjectParams>, res: Response ){
+    static async deleteProject(req: Request<ProjectParams>, res: Response ){
       const tenantId = req.user!.tenantId
       const { id } = req.params
 
@@ -73,11 +73,7 @@ export class ProjectController{
         const tenantId = req.user!.tenantId;
 
     
-        const result = await ProjectModel.alterProject({
-          ...data,
-          id,
-          tenantId,
-        });
+        const result = await ProjectModel.alterProject({ ...data, id, tenantId});
     
         if (result.count === 0) {
           throw new AppError(
@@ -87,7 +83,10 @@ export class ProjectController{
           );
         }
     
-        return res.status(200).json({ message: "Projeto atualizado com sucesso" });
+        return res.status(200).json({
+          success: true,
+          data: { message: "Projeto atualizado com sucesso" },
+        });
       }
     
 }
