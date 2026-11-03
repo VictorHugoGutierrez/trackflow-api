@@ -9,4 +9,4 @@ projectRoutes.use(authMiddleware);
 projectRoutes.post("/projects", ProjectController.createProject);
 projectRoutes.get("/projects", ProjectController.getProjects);
 projectRoutes.patch("/projects/:id", ProjectController.alterProject);
-projectRoutes.delete("/projects/:id", ProjectController.deleteProjects);
+projectRoutes.delete("/projects/:id", ProjectController.deleteProject);

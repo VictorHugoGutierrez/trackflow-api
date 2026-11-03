@@ -9,6 +9,8 @@ import { authRoutes } from "./routes/auth.routes";
 import { timeEntryRoutes } from "./routes/time-entry.routes";
 import { adminRoutes } from "./routes/admin.routes";
 import { clientRoutes } from "./routes/client.routes";
+import { projectRoutes } from "./routes/project.routes";
+import { taskRoutes } from "./routes/task.routes";
 
 dotenv.config();
 
@@ -51,10 +53,12 @@ app.get("/ping", (_req: Request, res: Response) => {
 
 //#region Routes
 
-app.use(authRoutes);
-app.use(timeEntryRoutes);
-app.use(adminRoutes);
-app.use(clientRoutes);
+app.use("/api",authRoutes);
+app.use("/api",timeEntryRoutes);
+app.use("/api",adminRoutes);
+app.use("/api",clientRoutes);
+app.use("/api",projectRoutes);
+app.use("/api",taskRoutes);
 
 //#endregion
 
