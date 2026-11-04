@@ -15,6 +15,14 @@ export interface ListTenantsFilters {
   active?: boolean;
 }
 
+export interface ProvisionTenantInput {
+  name: string;
+  plan?: string;
+  ownerName: string;
+  ownerEmail: string;
+  ownerPasswordHash: string;
+}
+
 export class AdminModel {
   static async getMetrics() {
     const todayStart = new Date();
@@ -193,6 +201,47 @@ export class AdminModel {
       ...tenant,
       owner,
     };
+  }
+
+  static async provisionTenant(data: ProvisionTenantInput) {
+    return prisma.$transaction(async (tx) => {
+      const tenant = await tx.tenant.create({
+        data: {
+          name: data.name.trim(),
+          plan: (data.plan || "freemium").toLowerCase().trim(),
+          active: true,
+        },
+      });
+
+      const owner = await tx.user.create({
+        data: {
+          tenantId: tenant.id,
+          name: data.ownerName.trim(),
+          email: data.ownerEmail.toLowerCase().trim(),
+          password: data.ownerPasswordHash,
+          role: Role.OWNER,
+        },
+      });
+
+      const settings = await tx.userSettings.create({
+        data: {
+          userId: owner.id,
+          hourlyRate: 0.0,
+          currency: "BRL",
+          theme: "dark",
+          pomodoroWork: 25,
+          pomodoroBreak: 5,
+        },
+      });
+
+      const { password: _, ...safeOwner } = owner;
+
+      return {
+        tenant,
+        owner: safeOwner,
+        settings,
+      };
+    });
   }
 
   static async updateTenant(id: string, data: UpdateTenantInput) {

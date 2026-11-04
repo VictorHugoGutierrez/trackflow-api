@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import { AppError } from "../errors/app-error";
+import { AppError } from "../errors/app-error.js";
 
 export function superAdminMiddleware(
   req: Request,
@@ -8,7 +8,11 @@ export function superAdminMiddleware(
 ) {
   const user = req.user;
 
-  if (!user || (user.role as string) !== "SUPER_ADMIN") {
+  if (
+    !user ||
+    (user.role as string) !== "SUPER_ADMIN" ||
+    (user.tenantId !== null && user.tenantId !== undefined && user.tenantId !== "")
+  ) {
     throw new AppError(
       "FORBIDDEN",
       "Acesso restrito ao painel de administração global.",

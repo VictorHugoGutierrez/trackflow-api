@@ -1,5 +1,7 @@
 import { Request, Response } from "express";
+import bcrypt from "bcryptjs";
 import { AdminModel } from "../models/admin.model.js";
+import { prisma } from "../lib/prisma.js";
 import { AppError } from "../errors/app-error.js";
 
 interface TenantParams {
@@ -10,6 +12,14 @@ interface UpdateTenantBody {
   name?: string;
   plan?: string;
   active?: boolean;
+}
+
+interface ProvisionTenantBody {
+  name: string;
+  plan?: string;
+  ownerName: string;
+  ownerEmail: string;
+  ownerPassword: string;
 }
 
 export class AdminController {
@@ -49,6 +59,55 @@ export class AdminController {
     }
 
     return res.json({ success: true, data: tenant });
+  }
+
+  static async provisionTenant(
+    req: Request<{}, {}, ProvisionTenantBody>,
+    res: Response,
+  ) {
+    const { name, plan, ownerName, ownerEmail, ownerPassword } = req.body;
+
+    if (!name || typeof name !== "string" || !name.trim()) {
+      throw new AppError("VALIDATION_ERROR", "O campo 'name' (nome da empresa) é obrigatório.", 400);
+    }
+    if (!ownerName || typeof ownerName !== "string" || !ownerName.trim()) {
+      throw new AppError("VALIDATION_ERROR", "O campo 'ownerName' é obrigatório.", 400);
+    }
+    if (!ownerEmail || typeof ownerEmail !== "string" || !ownerEmail.trim()) {
+      throw new AppError("VALIDATION_ERROR", "O campo 'ownerEmail' é obrigatório.", 400);
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const normalizedEmail = ownerEmail.trim().toLowerCase();
+    if (!emailRegex.test(normalizedEmail)) {
+      throw new AppError("VALIDATION_ERROR", "Formato de 'ownerEmail' inválido.", 400);
+    }
+
+    if (!ownerPassword || typeof ownerPassword !== "string" || ownerPassword.length < 6) {
+      throw new AppError("VALIDATION_ERROR", "A 'ownerPassword' deve conter no mínimo 6 caracteres.", 400);
+    }
+
+    const existingUser = await prisma.user.findUnique({
+      where: { email: normalizedEmail },
+    });
+    if (existingUser) {
+      throw new AppError("EMAIL_ALREADY_EXISTS", "Já existe um usuário cadastrado com este e-mail.", 409);
+    }
+
+    const passwordHash = await bcrypt.hash(ownerPassword, 10);
+
+    const result = await AdminModel.provisionTenant({
+      name,
+      plan: plan || "freemium",
+      ownerName,
+      ownerEmail: normalizedEmail,
+      ownerPasswordHash: passwordHash,
+    });
+
+    return res.status(201).json({
+      success: true,
+      data: result,
+    });
   }
 
   static async updateTenant(

@@ -1,10 +1,11 @@
 import { Router } from "express";
 import { TimeEntryController } from "../controllers/time-entry.controller.js";
 import { authMiddleware } from "../middlewares/auth.middleware.js";
+import { requireTenant } from "../middlewares/tenant.middleware.js";
 
 export const timeEntryRoutes = Router();
 
-timeEntryRoutes.use(authMiddleware);
+timeEntryRoutes.use("/api/time-entries", authMiddleware, requireTenant);
 
 timeEntryRoutes.post("/api/time-entries/start", TimeEntryController.start);
 timeEntryRoutes.patch("/api/time-entries/:id/stop", TimeEntryController.stop);

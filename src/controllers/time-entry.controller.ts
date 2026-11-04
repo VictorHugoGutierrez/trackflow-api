@@ -22,7 +22,8 @@ interface EntryParams {
 
 export class TimeEntryController {
   static async start(req: Request<{}, {}, StartBody>, res: Response) {
-    const { tenantId, sub: userId } = req.user!;
+    const tenantId = req.user!.tenantId as string;
+    const userId = req.user!.sub;
     const body = req.body || {};
 
     const active = await TimeEntryModel.findActive(tenantId, userId);
@@ -51,7 +52,8 @@ export class TimeEntryController {
   }
 
   static async stop(req: Request<EntryParams, {}, StopBody>, res: Response) {
-    const { tenantId, sub: userId } = req.user!;
+    const tenantId = req.user!.tenantId as string;
+    const userId = req.user!.sub;
     const { id } = req.params;
     const body = req.body || {};
 
@@ -80,7 +82,8 @@ export class TimeEntryController {
   }
 
   static async getActive(req: Request, res: Response) {
-    const { tenantId, sub: userId } = req.user!;
+    const tenantId = req.user!.tenantId as string;
+    const userId = req.user!.sub;
 
     const active = await TimeEntryModel.findActive(tenantId, userId);
 
@@ -91,7 +94,8 @@ export class TimeEntryController {
   }
 
   static async list(req: Request, res: Response) {
-    const { tenantId, sub: userId } = req.user!;
+    const tenantId = req.user!.tenantId as string;
+    const userId = req.user!.sub;
 
     const entries = await TimeEntryModel.listRecent(tenantId, userId);
 

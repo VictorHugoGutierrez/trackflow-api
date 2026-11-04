@@ -23,7 +23,7 @@ export class ClientController {
     res: Response,
   ) {
     const data = req.body;
-    const tenantId = req.user!.tenantId;
+    const tenantId = req.user!.tenantId as string;
 
     if (!data.name) {
       throw new AppError("NAME_REQUIRED", "O campo 'name' é obrigatório", 400);
@@ -38,14 +38,14 @@ export class ClientController {
   }
 
   static async getClients(req: Request, res: Response) {
-    const tenantId = req.user!.tenantId;
+    const tenantId = req.user!.tenantId as string;
 
     const clients = await ClientModel.findAllByTenant(tenantId);
     return res.status(200).json({ success: true, data: clients });
   }
 
   static async deleteClient(req: Request<ClientParams>, res: Response) {
-    const tenantId = req.user!.tenantId;
+    const tenantId = req.user!.tenantId as string;
     const { id } = req.params;
 
     const result = await ClientModel.deleteClient({ tenantId, id });
@@ -60,18 +60,19 @@ export class ClientController {
 
     return res.status(204).send();
   }
+
   static async alterClient(
     req: Request<ClientParams, {}, UpdateClientBody>,
     res: Response,
   ) {
     const { id } = req.params;
     const data = req.body;
-    const tenantId = req.user!.tenantId;
+    const tenantId = req.user!.tenantId as string;
 
     const result = await ClientModel.alterClient({
       ...data,
       id,
-      tenantId
+      tenantId,
     });
 
     if (result.count === 0) {

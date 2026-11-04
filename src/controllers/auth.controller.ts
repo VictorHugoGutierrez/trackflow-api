@@ -26,7 +26,7 @@ interface LoginBody {
 
 interface SessionUser {
   id: string;
-  tenantId: string;
+  tenantId?: string | null;
   role: Role;
   email: string;
 }
@@ -40,7 +40,7 @@ function issueAuthSession(res: Response, user: SessionUser): string {
   const token = jwt.sign(
     {
       sub: user.id,
-      tenantId: user.tenantId,
+      tenantId: user.tenantId ?? null,
       role: user.role,
       email: user.email,
     },
@@ -108,7 +108,12 @@ export class AuthController {
       workspaceName: workspaceName?.trim(),
     });
 
-    const token = issueAuthSession(res, user);
+    const token = issueAuthSession(res, {
+      id: user.id,
+      tenantId: user.tenantId,
+      role: user.role,
+      email: user.email,
+    });
 
     return res.status(201).json({
       success: true,
@@ -169,7 +174,31 @@ export class AuthController {
       );
     }
 
-    if (!user.tenant.active) {
+    if (user.role === Role.SUPER_ADMIN) {
+      const token = issueAuthSession(res, {
+        id: user.id,
+        tenantId: null,
+        role: user.role,
+        email: user.email,
+      });
+
+      return res.status(200).json({
+        success: true,
+        data: {
+          token,
+          user: {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            avatarUrl: user.avatarUrl,
+            role: user.role,
+          },
+          tenant: null,
+        },
+      });
+    }
+
+    if (user.tenant && !user.tenant.active) {
       throw new AppError(
         "FORBIDDEN",
         "Workspace desativado. Contate o administrador.",
@@ -177,7 +206,12 @@ export class AuthController {
       );
     }
 
-    const token = issueAuthSession(res, user);
+    const token = issueAuthSession(res, {
+      id: user.id,
+      tenantId: user.tenantId,
+      role: user.role,
+      email: user.email,
+    });
 
     return res.status(200).json({
       success: true,
@@ -190,11 +224,13 @@ export class AuthController {
           avatarUrl: user.avatarUrl,
           role: user.role,
         },
-        tenant: {
-          id: user.tenant.id,
-          name: user.tenant.name,
-          plan: user.tenant.plan,
-        },
+        tenant: user.tenant
+          ? {
+              id: user.tenant.id,
+              name: user.tenant.name,
+              plan: user.tenant.plan,
+            }
+          : null,
       },
     });
   }
@@ -248,7 +284,7 @@ export class AuthController {
       };
     }
 
-    if (!user.tenant.active) {
+    if (user.tenant && !user.tenant.active) {
       throw new AppError(
         "FORBIDDEN",
         "Workspace desativado. Contate o administrador.",
@@ -256,7 +292,12 @@ export class AuthController {
       );
     }
 
-    const token = issueAuthSession(res, user);
+    const token = issueAuthSession(res, {
+      id: user.id,
+      tenantId: user.tenantId,
+      role: user.role,
+      email: user.email,
+    });
 
     return res.status(200).json({
       success: true,
@@ -269,11 +310,13 @@ export class AuthController {
           avatarUrl: user.avatarUrl,
           role: user.role,
         },
-        tenant: {
-          id: user.tenant.id,
-          name: user.tenant.name,
-          plan: user.tenant.plan,
-        },
+        tenant: user.tenant
+          ? {
+              id: user.tenant.id,
+              name: user.tenant.name,
+              plan: user.tenant.plan,
+            }
+          : null,
       },
     });
   }

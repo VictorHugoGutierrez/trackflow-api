@@ -10,7 +10,7 @@ interface CreateProjectBody {
   clientId?: string;
 }
 
-interface UpdateProjectBody{
+interface UpdateProjectBody {
   name?: string;
   budgetHours?: number;
   status?: ProjectStatus;
@@ -21,72 +21,69 @@ interface ProjectParams {
   id: string;
 }
 
-export class ProjectController{
-    static async createProject(
-        req: Request<{}, {}, CreateProjectBody>,
-            res: Response,
-          )
-          {
-              const data = req.body;
-              const tenantId = req.user!.tenantId;
-          
-              if (!data.name) {
-                throw new AppError("NAME_REQUIRED", "O campo 'name' é obrigatório", 400);
-              }
-          
-              const project = await ProjectModel.createProject({
-                ...data,
-                tenantId,
-              });
-          
-              return res.status(201).json({ success: true, data: project });
-        }
+export class ProjectController {
+  static async createProject(
+    req: Request<{}, {}, CreateProjectBody>,
+    res: Response,
+  ) {
+    const data = req.body;
+    const tenantId = req.user!.tenantId as string;
 
-    static async getProjects(req: Request, res: Response) {
-        const tenantId = req.user!.tenantId;
-    
-        const project = await ProjectModel.findAllByTenant(tenantId);
-        return res.status(200).json({ success: true, data: project });
-      }
-
-    static async deleteProject(req: Request<ProjectParams>, res: Response ){
-      const tenantId = req.user!.tenantId
-      const { id } = req.params
-
-      const result = await ProjectModel.deleteProject({tenantId, id})
-      if (result.count === 0) {
-        throw new AppError(
-          "PROJECT_NOT_FOUND",
-          "Projeto não encontrado ou sem permissão para deletar",
-          404,
-        );
-      }
-      return res.status(204).send();
+    if (!data.name) {
+      throw new AppError("NAME_REQUIRED", "O campo 'name' é obrigatório", 400);
     }
 
-    static async alterProject(
-        req: Request<ProjectParams, {}, UpdateProjectBody>,
-        res: Response,
-      ) {
-        const { id } = req.params;
-        const data = req.body;
-        const tenantId = req.user!.tenantId;
+    const project = await ProjectModel.createProject({
+      ...data,
+      tenantId,
+    });
 
-    
-        const result = await ProjectModel.alterProject({ ...data, id, tenantId});
-    
-        if (result.count === 0) {
-          throw new AppError(
-            "PROJECT_NOT_FOUND",
-            "Projeto não encontrado ou sem permissão para alterar",
-            404,
-          );
-        }
-    
-        return res.status(200).json({
-          success: true,
-          data: { message: "Projeto atualizado com sucesso" },
-        });
-      }
-    
+    return res.status(201).json({ success: true, data: project });
+  }
+
+  static async getProjects(req: Request, res: Response) {
+    const tenantId = req.user!.tenantId as string;
+
+    const project = await ProjectModel.findAllByTenant(tenantId);
+    return res.status(200).json({ success: true, data: project });
+  }
+
+  static async deleteProject(req: Request<ProjectParams>, res: Response) {
+    const tenantId = req.user!.tenantId as string;
+    const { id } = req.params;
+
+    const result = await ProjectModel.deleteProject({ tenantId, id });
+    if (result.count === 0) {
+      throw new AppError(
+        "PROJECT_NOT_FOUND",
+        "Projeto não encontrado ou sem permissão para deletar",
+        404,
+      );
+    }
+    return res.status(204).send();
+  }
+
+  static async alterProject(
+    req: Request<ProjectParams, {}, UpdateProjectBody>,
+    res: Response,
+  ) {
+    const { id } = req.params;
+    const data = req.body;
+    const tenantId = req.user!.tenantId as string;
+
+    const result = await ProjectModel.alterProject({ ...data, id, tenantId });
+
+    if (result.count === 0) {
+      throw new AppError(
+        "PROJECT_NOT_FOUND",
+        "Projeto não encontrado ou sem permissão para alterar",
+        404,
+      );
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: { message: "Projeto atualizado com sucesso" },
+    });
+  }
 }

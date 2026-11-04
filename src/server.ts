@@ -1,4 +1,5 @@
 import express, { Request, Response, NextFunction } from "express";
+import path from "path";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import dotenv from "dotenv";
@@ -11,6 +12,7 @@ import { adminRoutes } from "./routes/admin.routes";
 import { clientRoutes } from "./routes/client.routes";
 import { projectRoutes } from "./routes/project.routes";
 import { taskRoutes } from "./routes/task.routes";
+import { teamRoutes } from "./routes/team.routes";
 
 dotenv.config();
 
@@ -22,6 +24,9 @@ if (!jwtSecret) {
 //#region Express App Initialization
 
 export const app = express();
+
+app.set("view engine", "ejs");
+app.set("views", path.join(process.cwd(), "views"));
 
 app.use(
   cors({
@@ -58,6 +63,7 @@ app.use(timeEntryRoutes);
 app.use(clientRoutes);
 app.use(projectRoutes);
 app.use(taskRoutes);
+app.use(teamRoutes);
 app.use(adminRoutes);
 
 //#endregion

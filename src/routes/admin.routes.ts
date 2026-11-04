@@ -5,11 +5,11 @@ import { superAdminMiddleware } from "../middlewares/super-admin.middleware.js";
 
 export const adminRoutes = Router();
 
-adminRoutes.use(authMiddleware);
-adminRoutes.use(superAdminMiddleware);
+adminRoutes.use("/api/admin", authMiddleware, superAdminMiddleware);
 
 adminRoutes.get("/api/admin/metrics", AdminController.getMetrics);
 adminRoutes.get("/api/admin/tenants", AdminController.listTenants);
+adminRoutes.post("/api/admin/tenants", AdminController.provisionTenant);
 adminRoutes.get("/api/admin/tenants/:id", AdminController.getTenant);
 adminRoutes.patch("/api/admin/tenants/:id", AdminController.updateTenant);
 adminRoutes.delete("/api/admin/tenants/:id", AdminController.deleteTenant);
