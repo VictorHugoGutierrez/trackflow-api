@@ -10,4 +10,7 @@ adminRoutes.use(superAdminMiddleware);
 
 adminRoutes.get("/api/admin/metrics", AdminController.getMetrics);
 adminRoutes.get("/api/admin/tenants", AdminController.listTenants);
+adminRoutes.get("/api/admin/tenants/:id", AdminController.getTenant);
 adminRoutes.patch("/api/admin/tenants/:id", AdminController.updateTenant);
+adminRoutes.delete("/api/admin/tenants/:id", AdminController.deleteTenant);
+adminRoutes.get("/api/admin/logs", AdminController.getLogs);
