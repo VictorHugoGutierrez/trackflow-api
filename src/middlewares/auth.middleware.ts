@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
-import { AppError } from "../errors/app-error";
-import { UserPayload } from "../types/express";
+import { AppError } from "../errors/app-error.js";
+import { UserPayload } from "../types/express.js";
 
 export function authMiddleware(
   req: Request,

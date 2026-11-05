@@ -1,12 +1,14 @@
 {
   "compilerOptions": {
-    "module": "ESNext",
+    "module": "esnext",
     "moduleResolution": "bundler",
-    "target": "ES2023",
+    "target": "es2022",
+    "outDir": "./dist",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "ignoreDeprecations": "5.0",
-    "outDir": "./dist"
-  }
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": ["src/**/*", "api/**/*"]
 }

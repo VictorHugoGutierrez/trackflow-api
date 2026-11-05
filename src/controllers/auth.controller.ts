@@ -3,8 +3,8 @@ import { OAuth2Client } from "google-auth-library";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import { Role } from "@prisma/client";
-import { UserModel } from "../models/user.model";
-import { AppError } from "../errors/app-error";
+import { UserModel } from "../models/user.model.js";
+import { AppError } from "../errors/app-error.js";
 
 function getGoogleClient(): OAuth2Client {
   return new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
@@ -141,15 +141,15 @@ export class AuthController {
   static async login(req: Request<{}, {}, LoginBody>, res: Response) {
     const { email, password } = req.body;
 
-    if (!email || !password) {
-      throw new AppError(
-        "VALIDATION_ERROR",
-        "E-mail e senha são obrigatórios.",
-        400,
-      );
+    if (!email || typeof email !== "string" || !email.trim()) {
+      throw new AppError("VALIDATION_ERROR", "O campo 'email' é obrigatório.", 400);
     }
 
-    const normalizedEmail = typeof email === "string" ? email.trim().toLowerCase() : "";
+    if (!password || typeof password !== "string" || !password.trim()) {
+      throw new AppError("VALIDATION_ERROR", "O campo 'password' é obrigatório.", 400);
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
     const user = await UserModel.findByEmail(normalizedEmail);
 
     if (!user) {
@@ -162,14 +162,14 @@ export class AuthController {
 
     if (!user.password) {
       throw new AppError(
-        "AUTH_METHOD_NOT_SUPPORTED",
-        "Esta conta foi criada com o Google. Por favor, utilize o login com Google.",
+        "SOCIAL_AUTH_REQUIRED",
+        "Esta conta foi registrada via Google. Por favor, utilize o botão 'Entrar com Google'.",
         400,
       );
     }
 
-    const isPasswordValid = await bcrypt.compare(password, user.password);
-    if (!isPasswordValid) {
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
       throw new AppError(
         "INVALID_CREDENTIALS",
         "E-mail ou senha inválidos.",
@@ -177,34 +177,10 @@ export class AuthController {
       );
     }
 
-    if (user.role === Role.SUPER_ADMIN) {
-      const token = issueAuthSession(res, {
-        id: user.id,
-        tenantId: null,
-        role: user.role,
-        email: user.email,
-      });
-
-      return res.status(200).json({
-        success: true,
-        data: {
-          token,
-          user: {
-            id: user.id,
-            name: user.name,
-            email: user.email,
-            avatarUrl: user.avatarUrl,
-            role: user.role,
-          },
-          tenant: null,
-        },
-      });
-    }
-
-    if (user.tenant && !user.tenant.active) {
+    if (user.role !== "SUPER_ADMIN" && user.tenant && !user.tenant.active) {
       throw new AppError(
-        "FORBIDDEN",
-        "Workspace desativado. Contate o administrador.",
+        "TENANT_SUSPENDED",
+        "O acesso deste workspace foi temporariamente suspenso. Entre em contato com o suporte.",
         403,
       );
     }
@@ -290,42 +266,44 @@ export class AuthController {
       }
     }
 
-    if (!payload?.email || !payload?.name) {
+    if (!payload?.email) {
       throw new AppError(
         "UNAUTHORIZED",
-        "Dados de conta incompletos no provedor.",
-        400,
+        "Falha ao obter informações da conta Google.",
+        401,
       );
     }
 
-    let user = await UserModel.findByEmail(payload.email.toLowerCase().trim());
+    const { email, name, picture } = payload;
 
-    if (!user) {
-      const created = await UserModel.createOwnerWithTenant({
-        email: payload.email.toLowerCase().trim(),
-        name: payload.name,
-        avatarUrl: payload.picture,
-      });
-      user = {
-        ...created.user,
-        tenant: created.tenant,
-        settings: created.settings,
-      };
-    }
+    let user = await UserModel.findByEmail(email);
 
-    if (user.tenant && !user.tenant.active) {
+    if (user && user.role !== "SUPER_ADMIN" && user.tenant && !user.tenant.active) {
       throw new AppError(
-        "FORBIDDEN",
-        "Workspace desativado. Contate o administrador.",
+        "TENANT_SUSPENDED",
+        "O acesso deste workspace foi temporariamente suspenso. Entre em contato com o suporte.",
         403,
       );
     }
 
+    let tenant = user?.tenant;
+
+    if (!user) {
+      const result = await UserModel.createOwnerWithTenant({
+        email,
+        name: name || "Usuário",
+        avatarUrl: picture,
+      });
+
+      user = result.user as any;
+      tenant = result.tenant as any;
+    }
+
     const token = issueAuthSession(res, {
-      id: user.id,
-      tenantId: user.tenantId,
-      role: user.role,
-      email: user.email,
+      id: user!.id,
+      tenantId: user!.tenantId,
+      role: user!.role,
+      email: user!.email,
     });
 
     return res.status(200).json({
@@ -333,17 +311,17 @@ export class AuthController {
       data: {
         token,
         user: {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          avatarUrl: user.avatarUrl,
-          role: user.role,
+          id: user!.id,
+          name: user!.name,
+          email: user!.email,
+          avatarUrl: user!.avatarUrl,
+          role: user!.role,
         },
-        tenant: user.tenant
+        tenant: tenant
           ? {
-              id: user.tenant.id,
-              name: user.tenant.name,
-              plan: user.tenant.plan,
+              id: tenant.id,
+              name: tenant.name,
+              plan: tenant.plan,
             }
           : null,
       },

@@ -5,16 +5,16 @@ import cors from "cors";
 import cookieParser from "cookie-parser";
 import dotenv from "dotenv";
 import { Prisma } from "@prisma/client";
-import { AppError } from "./errors/app-error";
-import type { ApiError } from "./types/api";
-import { authRoutes } from "./routes/auth.routes";
-import { timeEntryRoutes } from "./routes/time-entry.routes";
-import { adminRoutes } from "./routes/admin.routes";
-import { clientRoutes } from "./routes/client.routes";
-import { projectRoutes } from "./routes/project.routes";
-import { taskRoutes } from "./routes/task.routes";
-import { teamRoutes } from "./routes/team.routes";
-import { invoiceRoutes } from "./routes/invoice.routes";
+import { AppError } from "./errors/app-error.js";
+import type { ApiError } from "./types/api.js";
+import { authRoutes } from "./routes/auth.routes.js";
+import { timeEntryRoutes } from "./routes/time-entry.routes.js";
+import { adminRoutes } from "./routes/admin.routes.js";
+import { clientRoutes } from "./routes/client.routes.js";
+import { projectRoutes } from "./routes/project.routes.js";
+import { taskRoutes } from "./routes/task.routes.js";
+import { teamRoutes } from "./routes/team.routes.js";
+import { invoiceRoutes } from "./routes/invoice.routes.js";
 
 dotenv.config();
 
@@ -22,8 +22,6 @@ const jwtSecret = process.env.JWT_SECRET;
 if (!jwtSecret) {
   throw new Error("Variável de ambiente JWT_SECRET não definida no .env");
 }
-
-//#region Express App Initialization
 
 export const app = express();
 
@@ -42,11 +40,7 @@ app.use(cookieParser(jwtSecret));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-//#endregion
-
-//#region Health Check
-
-app.get("/ping", (_req: Request, res: Response) => {
+app.get(["/ping", "/api/ping"], (_req: Request, res: Response) => {
   return res.json({
     success: true,
     data: {
@@ -55,10 +49,6 @@ app.get("/ping", (_req: Request, res: Response) => {
     },
   });
 });
-
-//#endregion
-
-//#region Routes
 
 app.use(authRoutes);
 app.use(timeEntryRoutes);
@@ -69,9 +59,15 @@ app.use(teamRoutes);
 app.use(invoiceRoutes);
 app.use(adminRoutes);
 
-//#endregion
-
-//#region Error Handler
+app.use((_req: Request, res: Response) => {
+  return res.status(404).json({
+    success: false,
+    error: {
+      code: "NOT_FOUND",
+      message: "Rota não encontrada.",
+    },
+  });
+});
 
 app.use((error: any, _req: Request, res: Response, _next: NextFunction) => {
   if (error instanceof AppError) {
@@ -123,18 +119,12 @@ app.use((error: any, _req: Request, res: Response, _next: NextFunction) => {
   return res.status(500).json(internalResponse);
 });
 
-//#endregion
-
-//#region Start Server
-
 const port = Number(process.env.PORT) || 3333;
 
-if (process.env.NODE_ENV == "development") {
-  app.listen(port, () => {
+if (process.env.NODE_ENV !== "production") {
+  app.listen(port, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${port}`);
   });
 }
-
-//#endregion
 
 export default app;
