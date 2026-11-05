@@ -1,3 +1,4 @@
+import "dotenv/config";
 import express, { Request, Response, NextFunction } from "express";
 import path from "path";
 import cors from "cors";
@@ -13,6 +14,7 @@ import { clientRoutes } from "./routes/client.routes";
 import { projectRoutes } from "./routes/project.routes";
 import { taskRoutes } from "./routes/task.routes";
 import { teamRoutes } from "./routes/team.routes";
+import { invoiceRoutes } from "./routes/invoice.routes";
 
 dotenv.config();
 
@@ -64,6 +66,7 @@ app.use(clientRoutes);
 app.use(projectRoutes);
 app.use(taskRoutes);
 app.use(teamRoutes);
+app.use(invoiceRoutes);
 app.use(adminRoutes);
 
 //#endregion

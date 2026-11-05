@@ -11,3 +11,6 @@ timeEntryRoutes.post("/api/time-entries/start", TimeEntryController.start);
 timeEntryRoutes.patch("/api/time-entries/:id/stop", TimeEntryController.stop);
 timeEntryRoutes.get("/api/time-entries/active", TimeEntryController.getActive);
 timeEntryRoutes.get("/api/time-entries", TimeEntryController.list);
+timeEntryRoutes.post("/api/time-entries", TimeEntryController.createManual);
+timeEntryRoutes.patch("/api/time-entries/:id", TimeEntryController.update);
+timeEntryRoutes.delete("/api/time-entries/:id", TimeEntryController.delete);

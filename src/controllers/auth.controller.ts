@@ -6,7 +6,9 @@ import { Role } from "@prisma/client";
 import { UserModel } from "../models/user.model";
 import { AppError } from "../errors/app-error";
 
-const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+function getGoogleClient(): OAuth2Client {
+  return new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+}
 
 interface GoogleAuthBody {
   idToken: string;
@@ -248,12 +250,14 @@ export class AuthController {
 
     let payload;
     try {
-      const ticket = await googleClient.verifyIdToken({
+      const client = getGoogleClient();
+      const ticket = await client.verifyIdToken({
         idToken,
         audience: process.env.GOOGLE_CLIENT_ID,
       });
       payload = ticket.getPayload();
-    } catch {
+    } catch (err: any) {
+      console.error("Erro na validação do token Google:", err?.message || err);
       throw new AppError(
         "UNAUTHORIZED",
         "Token do Google inválido ou expirado.",
@@ -346,6 +350,39 @@ export class AuthController {
     return res.json({
       success: true,
       data: safeUser,
+    });
+  }
+
+  static async updateSettings(req: Request, res: Response) {
+    const userId = req.user!.sub;
+    const { theme, pomodoroWork, pomodoroBreak, hourlyRate, currency } = req.body || {};
+
+    const updated = await UserModel.updateSettings(userId, {
+      theme: typeof theme === "string" ? theme : undefined,
+      pomodoroWork: typeof pomodoroWork === "number" ? pomodoroWork : undefined,
+      pomodoroBreak: typeof pomodoroBreak === "number" ? pomodoroBreak : undefined,
+      hourlyRate: typeof hourlyRate === "number" ? hourlyRate : undefined,
+      currency: typeof currency === "string" ? currency : undefined,
+    });
+
+    return res.json({
+      success: true,
+      data: updated,
+    });
+  }
+
+  static async updateProfile(req: Request, res: Response) {
+    const userId = req.user!.sub;
+    const { name, avatarUrl } = req.body || {};
+
+    const updated = await UserModel.updateProfile(userId, {
+      name: typeof name === "string" ? name : undefined,
+      avatarUrl: typeof avatarUrl === "string" ? avatarUrl : undefined,
+    });
+
+    return res.json({
+      success: true,
+      data: updated,
     });
   }
 }
