@@ -7,7 +7,7 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "tsx watch src/server.ts",
     "seed:admin": "tsx prisma/seed-admin.ts",
-    "build": "prisma generate && tsc",
+    "build": "prisma generate && tsc --noEmit",
     "postinstall": "prisma generate"
   },
   "allowScripts": {
