@@ -11,7 +11,8 @@ function getGoogleClient(): OAuth2Client {
 }
 
 interface GoogleAuthBody {
-  idToken: string;
+  idToken?: string;
+  accessToken?: string;
 }
 
 interface RegisterBody {
@@ -238,9 +239,9 @@ export class AuthController {
   }
 
   static async googleLogin(req: Request<{}, {}, GoogleAuthBody>, res: Response) {
-    const { idToken } = req.body;
+    const { idToken, accessToken } = req.body;
 
-    if (!idToken) {
+    if (!idToken && !accessToken) {
       throw new AppError(
         "VALIDATION_ERROR",
         "Token do Google não informado.",
@@ -248,21 +249,45 @@ export class AuthController {
       );
     }
 
-    let payload;
-    try {
-      const client = getGoogleClient();
-      const ticket = await client.verifyIdToken({
-        idToken,
-        audience: process.env.GOOGLE_CLIENT_ID,
-      });
-      payload = ticket.getPayload();
-    } catch (err: any) {
-      console.error("Erro na validação do token Google:", err?.message || err);
-      throw new AppError(
-        "UNAUTHORIZED",
-        "Token do Google inválido ou expirado.",
-        401,
-      );
+    let payload: { email?: string; name?: string; picture?: string } | undefined;
+
+    if (idToken) {
+      try {
+        const client = getGoogleClient();
+        const ticket = await client.verifyIdToken({
+          idToken,
+          audience: process.env.GOOGLE_CLIENT_ID,
+        });
+        const p = ticket.getPayload();
+        if (p) {
+          payload = { email: p.email, name: p.name, picture: p.picture };
+        }
+      } catch (err: any) {
+        console.error("Erro na validação do token Google (idToken):", err?.message || err);
+        throw new AppError(
+          "UNAUTHORIZED",
+          "Token do Google inválido ou expirado.",
+          401,
+        );
+      }
+    } else if (accessToken) {
+      try {
+        const userInfoRes = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        if (!userInfoRes.ok) {
+          throw new Error(`Google userinfo status: ${userInfoRes.status}`);
+        }
+        const data = (await userInfoRes.json()) as any;
+        payload = { email: data.email, name: data.name, picture: data.picture };
+      } catch (err: any) {
+        console.error("Erro na validação do token Google (accessToken):", err?.message || err);
+        throw new AppError(
+          "UNAUTHORIZED",
+          "Token de acesso do Google inválido ou expirado.",
+          401,
+        );
+      }
     }
 
     if (!payload?.email || !payload?.name) {
