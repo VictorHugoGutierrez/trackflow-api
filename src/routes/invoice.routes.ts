@@ -23,6 +23,7 @@ invoiceRoutes.post("/api/reports/ai-insight", InvoiceController.generateAiInsigh
 invoiceRoutes.post("/api/reports/ai-summary", InvoiceController.generateAiInsight);
 
 invoiceRoutes.get("/api/invoices", InvoiceController.listInvoices);
+invoiceRoutes.get("/api/invoices/:id/pdf", InvoiceController.generatePdf);
 invoiceRoutes.post("/api/invoices/generate", InvoiceController.generateInvoice);
 invoiceRoutes.post("/api/invoices", InvoiceController.generateInvoice);
 invoiceRoutes.post("/api/invoices/:id/send", InvoiceController.sendInvoice);

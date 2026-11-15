@@ -2,6 +2,8 @@ import { Request, Response } from "express";
 import { Ollama } from "ollama";
 import { Resend } from "resend";
 import { InvoiceStatus } from "@prisma/client";
+import React from "react";
+import { renderToBuffer } from "@react-pdf/renderer";
 import { InvoiceModel } from "../models/invoice.model.js";
 import { prisma } from "../lib/prisma.js";
 import { AppError } from "../errors/app-error.js";
@@ -12,6 +14,7 @@ import {
   formatDurationHuman,
   parseReaisToCents,
 } from "../utils/formatters.js";
+import { InvoicePdfDocument } from "../components/invoice-pdf.js";
 
 interface AiInsightBody {
   clientId?: string;
@@ -599,5 +602,31 @@ Instruções:
       success: true,
       data: invoices,
     });
+  }
+
+  static async generatePdf(req: Request<{ id: string }>, res: Response) {
+    const tenantId = req.user!.tenantId as string;
+    const { id } = req.params;
+
+    const invoice = await InvoiceModel.findById(id, tenantId);
+    if (!invoice) {
+      throw new AppError("INVOICE_NOT_FOUND", "Fatura não encontrada.", 404);
+    }
+
+    const pdfBuffer = await renderToBuffer(
+      React.createElement(InvoicePdfDocument, {
+        tenantName: invoice.tenant?.name || "TrackFlow",
+        clientName: invoice.client.name,
+        monthRef: invoice.monthRef,
+        durationSeconds: invoice.durationSeconds,
+        amountCents: invoice.amountCents,
+      })
+    );
+
+    res.set({
+      "Content-Type": "application/pdf",
+      "Content-Length": pdfBuffer.length,
+    });
+    return res.send(pdfBuffer);
   }
 }
