@@ -49,6 +49,7 @@ model User {
   email     String   @unique
   name      String
   password  String?
+  mustChangePassword Boolean @default(true)
   avatarUrl String?
   role      Role     @default(MEMBER)
   createdAt DateTime @default(now())
