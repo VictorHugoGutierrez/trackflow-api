@@ -60,7 +60,6 @@ model User {
   @@map("users")
 }
 
-// Configurações individuais do usuário
 model UserSettings {
   id              String @id @default(uuid())
   userId          String @unique
