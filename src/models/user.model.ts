@@ -15,7 +15,7 @@ export interface CreateUserWithPasswordInput {
 }
 
 export interface UpdateUserSettingsInput {
-  hourlyRate?: number;
+  hourlyRateCents?: number;
   currency?: string;
   theme?: string;
   pomodoroWork?: number;
@@ -71,7 +71,7 @@ export class UserModel {
       const settings = await tx.userSettings.create({
         data: {
           userId: user.id,
-          hourlyRate: 0.0,
+          hourlyRateCents: 0,
           currency: "BRL",
           theme: "dark",
           pomodoroWork: 25,
@@ -106,7 +106,7 @@ export class UserModel {
       const settings = await tx.userSettings.create({
         data: {
           userId: user.id,
-          hourlyRate: 0.0,
+          hourlyRateCents: 0,
           currency: "BRL",
           theme: "dark",
           pomodoroWork: 25,
@@ -122,7 +122,7 @@ export class UserModel {
     return prisma.userSettings.upsert({
       where: { userId },
       update: {
-        ...(data.hourlyRate !== undefined ? { hourlyRate: data.hourlyRate } : {}),
+        ...(data.hourlyRateCents !== undefined ? { hourlyRateCents: data.hourlyRateCents } : {}),
         ...(data.currency ? { currency: data.currency } : {}),
         ...(data.theme ? { theme: data.theme } : {}),
         ...(data.pomodoroWork !== undefined ? { pomodoroWork: data.pomodoroWork } : {}),
@@ -130,7 +130,7 @@ export class UserModel {
       },
       create: {
         userId,
-        hourlyRate: data.hourlyRate ?? 0.0,
+        hourlyRateCents: data.hourlyRateCents ?? 0,
         currency: data.currency ?? "BRL",
         theme: data.theme ?? "dark",
         pomodoroWork: data.pomodoroWork ?? 25,

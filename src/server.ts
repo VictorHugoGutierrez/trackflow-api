@@ -12,7 +12,6 @@ import { timeEntryRoutes } from "./routes/time-entry.routes.js";
 import { adminRoutes } from "./routes/admin.routes.js";
 import { clientRoutes } from "./routes/client.routes.js";
 import { projectRoutes } from "./routes/project.routes.js";
-import { taskRoutes } from "./routes/task.routes.js";
 import { teamRoutes } from "./routes/team.routes.js";
 import { invoiceRoutes } from "./routes/invoice.routes.js";
 
@@ -54,7 +53,6 @@ app.use(authRoutes);
 app.use(timeEntryRoutes);
 app.use(clientRoutes);
 app.use(projectRoutes);
-app.use(taskRoutes);
 app.use(teamRoutes);
 app.use(invoiceRoutes);
 app.use(adminRoutes);

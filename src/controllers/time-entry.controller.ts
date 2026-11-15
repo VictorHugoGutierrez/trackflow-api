@@ -1,10 +1,11 @@
 import { Request, Response } from "express";
+import { ProjectStatus } from "@prisma/client";
+import { prisma } from "../lib/prisma.js";
 import { TimeEntryModel } from "../models/time-entry.model.js";
 import { AppError } from "../errors/app-error.js";
 
 interface StartBody {
   projectId?: string;
-  taskId?: string;
   description?: string;
   billable?: boolean;
 }
@@ -12,13 +13,11 @@ interface StartBody {
 interface StopBody {
   description?: string;
   projectId?: string;
-  taskId?: string;
   billable?: boolean;
 }
 
 interface ManualEntryBody {
   projectId?: string;
-  taskId?: string;
   description?: string;
   billable?: boolean;
   start: string;
@@ -27,7 +26,6 @@ interface ManualEntryBody {
 
 interface UpdateEntryBody {
   projectId?: string | null;
-  taskId?: string | null;
   description?: string;
   billable?: boolean;
   start?: string;
@@ -44,6 +42,25 @@ export class TimeEntryController {
     const userId = req.user!.sub;
     const body = req.body || {};
 
+    if (body.projectId) {
+      const project = await prisma.project.findFirst({
+        where: { id: body.projectId, tenantId },
+        select: { id: true, status: true },
+      });
+
+      if (!project) {
+        throw new AppError("PROJECT_NOT_FOUND", "Projeto não encontrado.", 404);
+      }
+
+      if (project.status === ProjectStatus.COMPLETED) {
+        throw new AppError(
+          "PROJECT_COMPLETED",
+          "Não é possível iniciar o cronômetro em um projeto concluído.",
+          400,
+        );
+      }
+    }
+
     const active = await TimeEntryModel.findActive(tenantId, userId);
     if (active) {
       throw new AppError(
@@ -58,7 +75,6 @@ export class TimeEntryController {
       tenantId,
       userId,
       projectId: body.projectId,
-      taskId: body.taskId,
       description: body.description,
       billable: body.billable,
     });
@@ -81,7 +97,6 @@ export class TimeEntryController {
       userId,
       description: body.description,
       projectId: body.projectId,
-      taskId: body.taskId,
       billable: body.billable,
     });
 
@@ -150,7 +165,6 @@ export class TimeEntryController {
       tenantId,
       userId,
       projectId: body.projectId,
-      taskId: body.taskId,
       description: body.description,
       billable: body.billable,
       start: startDate,
@@ -211,7 +225,6 @@ export class TimeEntryController {
       userId,
       description: body.description,
       projectId: body.projectId,
-      taskId: body.taskId,
       billable: body.billable,
       start: startDate,
       end: endDate,

@@ -3,9 +3,14 @@ import ollama from "ollama";
 import { Resend } from "resend";
 import { InvoiceStatus } from "@prisma/client";
 import { InvoiceModel } from "../models/invoice.model.js";
-import { ClientModel } from "../models/client.model.js";
 import { prisma } from "../lib/prisma.js";
 import { AppError } from "../errors/app-error.js";
+import {
+  formatCurrencyBRL,
+  formatDurationHMS,
+  formatDurationHuman,
+  parseReaisToCents,
+} from "../utils/formatters.js";
 
 interface GenerateSummaryBody {
   clientId: string;
@@ -17,8 +22,10 @@ interface GenerateSummaryBody {
 interface CreateInvoiceBody {
   clientId: string;
   monthRef: string;
-  totalHours: number;
-  totalValue: number;
+  durationSeconds?: number;
+  amountCents?: number;
+  totalHours?: number;
+  totalValue?: number;
   aiSummary?: string;
   sendEmail?: boolean;
   recipientEmail?: string;
@@ -72,30 +79,33 @@ export class InvoiceController {
       },
       include: {
         project: true,
-        task: true,
       },
       orderBy: { start: "asc" },
     });
 
     const totalDurationSeconds = timeEntries.reduce(
-      (acc, entry) => acc + (entry.duration || 0),
+      (acc, entry) => acc + (entry.durationSeconds || 0),
       0,
     );
-    const totalHours = Number((totalDurationSeconds / 3600).toFixed(2));
+    const formattedDuration = formatDurationHMS(totalDurationSeconds);
+    const humanDuration = formatDurationHuman(totalDurationSeconds);
 
     const descriptions = timeEntries
-      .map((entry) => `- [${entry.project?.name || "Geral"}] ${entry.description || "Sem descrição"} (${entry.duration ? (entry.duration / 3600).toFixed(2) : 0}h)`)
+      .map(
+        (entry) =>
+          `- [${entry.project?.name || "Geral"}] ${entry.description || "Sem descrição"} (${formatDurationHuman(entry.durationSeconds)})`,
+      )
       .slice(0, 30)
       .join("\n");
 
     const prompt = `Você é um assistente financeiro e de gestão do TrackFlow.
 Gere um resumo executivo profissional, claro e conciso em língua portuguesa para a fatura do cliente "${client.name}".
 Mês/Período de Referência: ${monthRef || "Recente"}
-Total de Horas Trabalhadas: ${totalHours} horas.
+Tempo Total Trabalhado: ${humanDuration} (${formattedDuration}).
 Entregas e Atividades Realizadas:
 ${descriptions || "Diversas atividades e reuniões de projeto."}
 
-Formate com 2 a 3 parágrafos curtos destacando o valor entregue, os projetos atendidos e o total de horas apurado.`;
+Formate com 2 a 3 parágrafos curtos destacando o valor entregue, os projetos atendidos e o total de tempo apurado.`;
 
     let summaryText = "";
 
@@ -107,7 +117,7 @@ Formate com 2 a 3 parágrafos curtos destacando o valor entregue, os projetos at
       });
       summaryText = response.message?.content?.trim() || "";
     } catch {
-      summaryText = `Resumo de Prestação de Serviços - ${client.name}\n\nDurante o período apurado (${monthRef || "mensal"}), foram dedicadas ${totalHours}h de desenvolvimento e consultoria especializada em projetos vinculados ao cliente. Todas as atividades foram validadas no sistema de apontamento de horas com foco em eficiência e qualidade nas entregas.`;
+      summaryText = `Resumo de Prestação de Serviços - ${client.name}\n\nDurante o período apurado (${monthRef || "mensal"}), foram dedicadas ${humanDuration} (${formattedDuration}) de desenvolvimento e consultoria especializada em projetos vinculados ao cliente. Todas as atividades foram validadas no sistema de apontamento de horas com foco em eficiência e qualidade nas entregas.`;
     }
 
     return res.json({
@@ -116,7 +126,8 @@ Formate com 2 a 3 parágrafos curtos destacando o valor entregue, os projetos at
         clientId: client.id,
         clientName: client.name,
         monthRef: monthRef || "",
-        totalHours,
+        durationSeconds: totalDurationSeconds,
+        formattedDuration,
         totalEntries: timeEntries.length,
         summary: summaryText,
       },
@@ -128,12 +139,43 @@ Formate com 2 a 3 parágrafos curtos destacando o valor entregue, os projetos at
     res: Response,
   ) {
     const tenantId = req.user!.tenantId as string;
-    const { clientId, monthRef, totalHours, totalValue, aiSummary, sendEmail, recipientEmail } = req.body;
+    const {
+      clientId,
+      monthRef,
+      durationSeconds: rawDurationSeconds,
+      amountCents: rawAmountCents,
+      totalHours,
+      totalValue,
+      aiSummary,
+      sendEmail,
+      recipientEmail,
+    } = req.body;
 
-    if (!clientId || !monthRef || totalHours === undefined || totalValue === undefined) {
+    const durationSeconds =
+      rawDurationSeconds !== undefined
+        ? Math.max(0, Math.round(Number(rawDurationSeconds)))
+        : totalHours !== undefined
+          ? Math.max(0, Math.round(Number(totalHours) * 3600))
+          : undefined;
+
+    const amountCents =
+      rawAmountCents !== undefined
+        ? Math.max(0, Math.round(Number(rawAmountCents)))
+        : totalValue !== undefined
+          ? parseReaisToCents(totalValue)
+          : undefined;
+
+    if (
+      !clientId ||
+      !monthRef ||
+      durationSeconds === undefined ||
+      amountCents === undefined ||
+      !Number.isFinite(durationSeconds) ||
+      !Number.isFinite(amountCents)
+    ) {
       throw new AppError(
         "VALIDATION_ERROR",
-        "Os campos 'clientId', 'monthRef', 'totalHours' e 'totalValue' são obrigatórios.",
+        "Os campos 'clientId', 'monthRef', 'durationSeconds' e 'amountCents' são obrigatórios.",
         400,
       );
     }
@@ -150,8 +192,8 @@ Formate com 2 a 3 parágrafos curtos destacando o valor entregue, os projetos at
       tenantId,
       clientId,
       monthRef,
-      totalHours,
-      totalValue,
+      durationSeconds,
+      amountCents,
       aiSummary,
     });
 
@@ -178,8 +220,8 @@ Formate com 2 a 3 parágrafos curtos destacando o valor entregue, os projetos at
             html: `<h2>Fatura de Serviços - TrackFlow</h2>
 <p>Prezado(a) ${client.name},</p>
 <p>Segue a fatura de serviços referente a <strong>${monthRef}</strong>.</p>
-<p><strong>Total de Horas:</strong> ${totalHours}h<br/>
-<strong>Valor Total:</strong> R$ ${Number(totalValue).toFixed(2)}</p>
+<p><strong>Tempo Apurado:</strong> ${formatDurationHMS(invoice.durationSeconds)}<br/>
+<strong>Valor Total:</strong> ${formatCurrencyBRL(invoice.amountCents)}</p>
 ${aiSummary ? `<h3>Resumo das Atividades</h3><p>${aiSummary.replace(/\n/g, "<br/>")}</p>` : ""}
 <p>Agradecemos a parceria!</p>`,
           });

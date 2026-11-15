@@ -1,10 +1,11 @@
 import { prisma } from "../lib/prisma.js";
+import { calculateAmountCents } from "../utils/formatters.js";
+import { ProjectModel } from "./project.model.js";
 
 interface StartTimeEntryInput {
   tenantId: string;
   userId: string;
   projectId?: string;
-  taskId?: string;
   description?: string;
   billable?: boolean;
 }
@@ -15,7 +16,6 @@ interface StopTimeEntryInput {
   userId: string;
   description?: string;
   projectId?: string;
-  taskId?: string;
   billable?: boolean;
 }
 
@@ -23,7 +23,6 @@ interface CreateManualTimeEntryInput {
   tenantId: string;
   userId: string;
   projectId?: string;
-  taskId?: string;
   description?: string;
   billable?: boolean;
   start: Date;
@@ -36,7 +35,6 @@ interface UpdateTimeEntryInput {
   userId: string;
   description?: string;
   projectId?: string | null;
-  taskId?: string | null;
   billable?: boolean;
   start?: Date;
   end?: Date;
@@ -50,6 +48,22 @@ interface ListTimeEntriesFilter {
   clientId?: string;
 }
 
+const TIME_ENTRY_INCLUDE = {
+  project: {
+    include: {
+      client: true,
+    },
+  },
+} as const;
+
+async function getUserHourlyRateCents(userId: string): Promise<number> {
+  const settings = await prisma.userSettings.findUnique({
+    where: { userId },
+    select: { hourlyRateCents: true },
+  });
+  return settings?.hourlyRateCents ?? 0;
+}
+
 export class TimeEntryModel {
   static async findActive(tenantId: string, userId: string) {
     return prisma.timeEntry.findFirst({
@@ -58,14 +72,7 @@ export class TimeEntryModel {
         userId,
         end: null,
       },
-      include: {
-        project: {
-          include: {
-            client: true,
-          },
-        },
-        task: true,
-      },
+      include: TIME_ENTRY_INCLUDE,
     });
   }
 
@@ -75,21 +82,14 @@ export class TimeEntryModel {
         tenantId: data.tenantId,
         userId: data.userId,
         projectId: data.projectId || null,
-        taskId: data.taskId || null,
         description: data.description || null,
         billable: data.billable ?? true,
         start: new Date(),
         end: null,
-        duration: null,
+        durationSeconds: null,
+        amountCents: 0,
       },
-      include: {
-        project: {
-          include: {
-            client: true,
-          },
-        },
-        task: true,
-      },
+      include: TIME_ENTRY_INCLUDE,
     });
   }
 
@@ -105,61 +105,76 @@ export class TimeEntryModel {
     if (!entry) return null;
 
     const stopTime = new Date();
-    const durationInSeconds = Math.max(
+    const durationSeconds = Math.max(
       0,
       Math.floor((stopTime.getTime() - entry.start.getTime()) / 1000),
     );
+    const effectiveBillable =
+      data.billable !== undefined ? data.billable : entry.billable;
+    const effectiveProjectId =
+      data.projectId !== undefined ? data.projectId : entry.projectId;
 
-    return prisma.timeEntry.update({
+    const hourlyRateCents = effectiveBillable
+      ? await getUserHourlyRateCents(data.userId)
+      : 0;
+    const amountCents = effectiveBillable
+      ? calculateAmountCents(durationSeconds, hourlyRateCents)
+      : 0;
+
+    const updated = await prisma.timeEntry.update({
       where: { id: data.id },
       data: {
         end: stopTime,
-        duration: durationInSeconds,
+        durationSeconds,
+        amountCents,
         description:
           data.description !== undefined ? data.description : entry.description,
-        projectId:
-          data.projectId !== undefined ? data.projectId : entry.projectId,
-        taskId: data.taskId !== undefined ? data.taskId : entry.taskId,
-        billable: data.billable !== undefined ? data.billable : entry.billable,
+        projectId: effectiveProjectId,
+        billable: effectiveBillable,
       },
-      include: {
-        project: {
-          include: {
-            client: true,
-          },
-        },
-        task: true,
-      },
+      include: TIME_ENTRY_INCLUDE,
     });
+
+    if (effectiveProjectId) {
+      await ProjectModel.syncHealthStatus(effectiveProjectId);
+    }
+
+    return updated;
   }
 
   static async createManual(data: CreateManualTimeEntryInput) {
-    const durationInSeconds = Math.max(
+    const durationSeconds = Math.max(
       0,
       Math.floor((data.end.getTime() - data.start.getTime()) / 1000),
     );
+    const billable = data.billable ?? true;
+    const hourlyRateCents = billable
+      ? await getUserHourlyRateCents(data.userId)
+      : 0;
+    const amountCents = billable
+      ? calculateAmountCents(durationSeconds, hourlyRateCents)
+      : 0;
 
-    return prisma.timeEntry.create({
+    const created = await prisma.timeEntry.create({
       data: {
         tenantId: data.tenantId,
         userId: data.userId,
         projectId: data.projectId || null,
-        taskId: data.taskId || null,
         description: data.description || null,
-        billable: data.billable ?? true,
+        billable,
         start: data.start,
         end: data.end,
-        duration: durationInSeconds,
+        durationSeconds,
+        amountCents,
       },
-      include: {
-        project: {
-          include: {
-            client: true,
-          },
-        },
-        task: true,
-      },
+      include: TIME_ENTRY_INCLUDE,
     });
+
+    if (data.projectId) {
+      await ProjectModel.syncHealthStatus(data.projectId);
+    }
+
+    return created;
   }
 
   static async update(data: UpdateTimeEntryInput) {
@@ -175,37 +190,49 @@ export class TimeEntryModel {
 
     const newStart = data.start ?? entry.start;
     const newEnd = data.end !== undefined ? data.end : entry.end;
-    let duration = entry.duration;
+    let durationSeconds = entry.durationSeconds;
 
     if (newStart && newEnd) {
-      duration = Math.max(
+      durationSeconds = Math.max(
         0,
         Math.floor((newEnd.getTime() - newStart.getTime()) / 1000),
       );
     }
 
-    return prisma.timeEntry.update({
+    const newBillable =
+      data.billable !== undefined ? data.billable : entry.billable;
+    const newProjectId =
+      data.projectId !== undefined ? data.projectId : entry.projectId;
+
+    let amountCents = 0;
+    if (newBillable && durationSeconds !== null && durationSeconds !== undefined) {
+      const hourlyRateCents = await getUserHourlyRateCents(data.userId);
+      amountCents = calculateAmountCents(durationSeconds, hourlyRateCents);
+    }
+
+    const updated = await prisma.timeEntry.update({
       where: { id: data.id },
       data: {
         start: newStart,
         end: newEnd,
-        duration,
+        durationSeconds,
+        amountCents,
         description:
           data.description !== undefined ? data.description : entry.description,
-        projectId:
-          data.projectId !== undefined ? data.projectId : entry.projectId,
-        taskId: data.taskId !== undefined ? data.taskId : entry.taskId,
-        billable: data.billable !== undefined ? data.billable : entry.billable,
+        projectId: newProjectId,
+        billable: newBillable,
       },
-      include: {
-        project: {
-          include: {
-            client: true,
-          },
-        },
-        task: true,
-      },
+      include: TIME_ENTRY_INCLUDE,
     });
+
+    if (entry.projectId && entry.projectId !== newProjectId) {
+      await ProjectModel.syncHealthStatus(entry.projectId);
+    }
+    if (newProjectId) {
+      await ProjectModel.syncHealthStatus(newProjectId);
+    }
+
+    return updated;
   }
 
   static async delete(id: string, tenantId: string, userId: string) {
@@ -215,6 +242,7 @@ export class TimeEntryModel {
         tenantId,
         userId,
       },
+      select: { id: true, projectId: true },
     });
 
     if (!entry) return false;
@@ -222,6 +250,10 @@ export class TimeEntryModel {
     await prisma.timeEntry.delete({
       where: { id },
     });
+
+    if (entry.projectId) {
+      await ProjectModel.syncHealthStatus(entry.projectId);
+    }
 
     return true;
   }
@@ -233,20 +265,17 @@ export class TimeEntryModel {
   ) {
     const { limit = 50, startDate, endDate, projectId, clientId } = filters;
 
-    const where: any = {
+    const where: Record<string, unknown> = {
       tenantId,
       userId,
       end: { not: null },
     };
 
     if (startDate || endDate) {
-      where.start = {};
-      if (startDate) {
-        where.start.gte = startDate;
-      }
-      if (endDate) {
-        where.start.lte = endDate;
-      }
+      const startFilter: { gte?: Date; lte?: Date } = {};
+      if (startDate) startFilter.gte = startDate;
+      if (endDate) startFilter.lte = endDate;
+      where.start = startFilter;
     }
 
     if (projectId) {
@@ -263,14 +292,7 @@ export class TimeEntryModel {
       where,
       orderBy: { start: "desc" },
       take: limit,
-      include: {
-        project: {
-          include: {
-            client: true,
-          },
-        },
-        task: true,
-      },
+      include: TIME_ENTRY_INCLUDE,
     });
   }
 }

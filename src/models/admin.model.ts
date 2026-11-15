@@ -42,7 +42,7 @@ export class AdminModel {
       prisma.timeEntry.count(),
       prisma.timeEntry.aggregate({
         where: { start: { gte: todayStart } },
-        _sum: { duration: true },
+        _sum: { durationSeconds: true },
       }),
       prisma.invoice.count({
         where: { aiSummary: { not: null } },
@@ -70,7 +70,7 @@ export class AdminModel {
     }
 
     const todayHours = Number(
-      (((todayDurationResult._sum.duration || 0) / 3600)).toFixed(1),
+      (((todayDurationResult._sum.durationSeconds || 0) / 3600)).toFixed(1),
     );
 
     return {
@@ -226,7 +226,7 @@ export class AdminModel {
       const settings = await tx.userSettings.create({
         data: {
           userId: owner.id,
-          hourlyRate: 0.0,
+          hourlyRateCents: 0,
           currency: "BRL",
           theme: "dark",
           pomodoroWork: 25,

@@ -5,8 +5,8 @@ export interface CreateInvoiceInput {
   tenantId: string;
   clientId: string;
   monthRef: string;
-  totalHours: number;
-  totalValue: number;
+  durationSeconds: number;
+  amountCents: number;
   status?: InvoiceStatus;
   aiSummary?: string;
   pdfUrl?: string;
@@ -49,8 +49,8 @@ export class InvoiceModel {
         tenantId: data.tenantId,
         clientId: data.clientId,
         monthRef: data.monthRef,
-        totalHours: data.totalHours,
-        totalValue: data.totalValue,
+        durationSeconds: data.durationSeconds,
+        amountCents: data.amountCents,
         status: data.status || InvoiceStatus.pendente,
         aiSummary: data.aiSummary || null,
         pdfUrl: data.pdfUrl || null,
