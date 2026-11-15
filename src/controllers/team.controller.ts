@@ -4,6 +4,35 @@ import { Role } from "@prisma/client";
 import { TeamModel } from "../models/team.model.js";
 import { prisma } from "../lib/prisma.js";
 import { AppError } from "../errors/app-error.js";
+import { parseReaisToCents } from "../utils/formatters.js";
+
+function parseHourlyRateCents(
+  hourlyRateCents: unknown,
+  hourlyRate: unknown,
+): number | undefined {
+  if (
+    hourlyRateCents !== undefined &&
+    hourlyRateCents !== null &&
+    hourlyRateCents !== ""
+  ) {
+    const parsed = Math.round(Number(hourlyRateCents));
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      throw new AppError("VALIDATION_ERROR", "Valor hora em centavos inválido.", 400);
+    }
+    return parsed;
+  }
+
+  if (hourlyRate !== undefined && hourlyRate !== null && hourlyRate !== "") {
+    const normalized = String(hourlyRate).trim().replace(",", ".");
+    const parsed = Number(normalized);
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      throw new AppError("VALIDATION_ERROR", "Valor hora inválido.", 400);
+    }
+    return parseReaisToCents(parsed);
+  }
+
+  return undefined;
+}
 
 export class TeamController {
   static async listMembers(req: Request, res: Response) {
@@ -25,7 +54,7 @@ export class TeamController {
 
   static async inviteMember(req: Request, res: Response) {
     const tenantId = req.user!.tenantId as string;
-    const { name, email, password, role } = req.body;
+    const { name, email, password, role, hourlyRateCents, hourlyRate } = req.body;
 
     if (!name || typeof name !== "string" || !name.trim()) {
       throw new AppError("VALIDATION_ERROR", "O campo 'name' é obrigatório.", 400);
@@ -60,6 +89,7 @@ export class TeamController {
       throw new AppError("EMAIL_ALREADY_EXISTS", "Já existe um usuário cadastrado com este e-mail.", 409);
     }
 
+    const parsedHourlyRateCents = parseHourlyRateCents(hourlyRateCents, hourlyRate);
     const passwordHash = await bcrypt.hash(password, 10);
 
     const result = await TeamModel.createMember({
@@ -68,6 +98,7 @@ export class TeamController {
       email: normalizedEmail,
       passwordHash,
       role: uppercaseRole as Role,
+      hourlyRateCents: parsedHourlyRateCents ?? 0,
     });
 
     if (req.path.startsWith("/dashboard") && req.accepts("html")) {
@@ -77,6 +108,73 @@ export class TeamController {
     return res.status(201).json({
       success: true,
       data: result.user,
+    });
+  }
+
+  static async updateMember(req: Request, res: Response) {
+    const tenantId = req.user!.tenantId as string;
+    const id = req.params.id as string;
+    const { name, role, hourlyRateCents, hourlyRate } = req.body || {};
+
+    const targetUser = await TeamModel.findMemberById(id, tenantId);
+    if (!targetUser) {
+      throw new AppError("NOT_FOUND", "Membro não encontrado neste workspace.", 404);
+    }
+
+    if (req.user!.role === Role.MANAGER && targetUser.role === Role.OWNER) {
+      throw new AppError("FORBIDDEN", "Gestores não possuem permissão para editar o proprietário.", 403);
+    }
+
+    let nextRole: Role | undefined;
+    if (role !== undefined && role !== null && String(role).trim() !== "") {
+      const uppercaseRole = String(role).toUpperCase().trim();
+      if (targetUser.role === Role.OWNER && uppercaseRole !== Role.OWNER) {
+        throw new AppError("FORBIDDEN", "Não é possível alterar a função do proprietário.", 403);
+      }
+      if (
+        targetUser.role !== Role.OWNER &&
+        uppercaseRole !== Role.MANAGER &&
+        uppercaseRole !== Role.MEMBER
+      ) {
+        throw new AppError(
+          "INVALID_ROLE",
+          "Apenas as funções 'MANAGER' ou 'MEMBER' podem ser atribuídas a membros.",
+          400,
+        );
+      }
+      nextRole = uppercaseRole as Role;
+    }
+
+    if (name !== undefined && (typeof name !== "string" || !name.trim())) {
+      throw new AppError("VALIDATION_ERROR", "O campo 'name' não pode ficar vazio.", 400);
+    }
+
+    const parsedHourlyRateCents = parseHourlyRateCents(hourlyRateCents, hourlyRate);
+
+    const updated = await TeamModel.updateMember(id, {
+      name: name !== undefined ? name.trim() : undefined,
+      role: nextRole,
+      hourlyRateCents: parsedHourlyRateCents,
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: updated,
+    });
+  }
+
+  static async getMemberActivity(req: Request, res: Response) {
+    const tenantId = req.user!.tenantId as string;
+    const id = req.params.id as string;
+
+    const activity = await TeamModel.getMemberActivity(id, tenantId);
+    if (!activity) {
+      throw new AppError("NOT_FOUND", "Membro não encontrado neste workspace.", 404);
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: activity,
     });
   }
 

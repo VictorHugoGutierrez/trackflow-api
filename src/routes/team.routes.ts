@@ -23,4 +23,6 @@ teamRoutes.post("/dashboard/team/:id", ...teamGuard, TeamController.removeMember
 teamRoutes.get("/api/team", ...teamGuard, TeamController.listMembers);
 teamRoutes.post("/api/team/invite", ...teamGuard, TeamController.inviteMember);
 teamRoutes.post("/api/team", ...teamGuard, TeamController.inviteMember);
+teamRoutes.patch("/api/team/:id", ...teamGuard, TeamController.updateMember);
+teamRoutes.get("/api/team/:id/activity", ...teamGuard, TeamController.getMemberActivity);
 teamRoutes.delete("/api/team/:id", ...teamGuard, TeamController.removeMember);

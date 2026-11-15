@@ -5,6 +5,7 @@ export interface UserPayload {
   role: Role;
   sub: string;
   email?: string;
+  name?: string;
 }
 
 declare global {

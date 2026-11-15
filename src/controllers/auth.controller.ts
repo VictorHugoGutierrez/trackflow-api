@@ -5,6 +5,7 @@ import bcrypt from "bcryptjs";
 import { Role } from "@prisma/client";
 import { UserModel } from "../models/user.model.js";
 import { AppError } from "../errors/app-error.js";
+import { parseReaisToCents } from "../utils/formatters.js";
 
 function getGoogleClient(): OAuth2Client {
   return new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
@@ -32,6 +33,7 @@ interface SessionUser {
   tenantId?: string | null;
   role: Role;
   email: string;
+  name: string;
 }
 
 function issueAuthSession(res: Response, user: SessionUser): string {
@@ -46,6 +48,7 @@ function issueAuthSession(res: Response, user: SessionUser): string {
       tenantId: user.tenantId ?? null,
       role: user.role,
       email: user.email,
+      name: user.name,
     },
     jwtSecret,
     {
@@ -116,6 +119,7 @@ export class AuthController {
       tenantId: user.tenantId,
       role: user.role,
       email: user.email,
+      name: user.name,
     });
 
     return res.status(201).json({
@@ -190,6 +194,7 @@ export class AuthController {
       tenantId: user.tenantId,
       role: user.role,
       email: user.email,
+      name: user.name,
     });
 
     return res.status(200).json({
@@ -304,6 +309,7 @@ export class AuthController {
       tenantId: user!.tenantId,
       role: user!.role,
       email: user!.email,
+      name: user!.name,
     });
 
     return res.status(200).json({
@@ -358,13 +364,35 @@ export class AuthController {
 
   static async updateSettings(req: Request, res: Response) {
     const userId = req.user!.sub;
-    const { theme, pomodoroWork, pomodoroBreak, hourlyRate, currency } = req.body || {};
+    const {
+      theme,
+      pomodoroWork,
+      pomodoroBreak,
+      hourlyRateCents,
+      hourlyRate,
+      currency,
+    } = req.body || {};
+
+    let resolvedHourlyRateCents: number | undefined;
+    if (hourlyRateCents !== undefined && hourlyRateCents !== null && hourlyRateCents !== "") {
+      const parsed = Math.round(Number(hourlyRateCents));
+      if (!Number.isFinite(parsed) || parsed < 0) {
+        throw new AppError(
+          "VALIDATION_ERROR",
+          "O valor de 'hourlyRateCents' deve ser um inteiro maior ou igual a zero.",
+          400,
+        );
+      }
+      resolvedHourlyRateCents = parsed;
+    } else if (hourlyRate !== undefined && hourlyRate !== null && hourlyRate !== "") {
+      resolvedHourlyRateCents = parseReaisToCents(hourlyRate);
+    }
 
     const updated = await UserModel.updateSettings(userId, {
       theme: typeof theme === "string" ? theme : undefined,
       pomodoroWork: typeof pomodoroWork === "number" ? pomodoroWork : undefined,
       pomodoroBreak: typeof pomodoroBreak === "number" ? pomodoroBreak : undefined,
-      hourlyRate: typeof hourlyRate === "number" ? hourlyRate : undefined,
+      hourlyRateCents: resolvedHourlyRateCents,
       currency: typeof currency === "string" ? currency : undefined,
     });
 
@@ -383,9 +411,20 @@ export class AuthController {
       avatarUrl: typeof avatarUrl === "string" ? avatarUrl : undefined,
     });
 
+    const token = issueAuthSession(res, {
+      id: updated.id,
+      tenantId: updated.tenantId,
+      role: updated.role,
+      email: updated.email,
+      name: updated.name,
+    });
+
     return res.json({
       success: true,
-      data: updated,
+      data: {
+        ...updated,
+        token,
+      },
     });
   }
 }
