@@ -9,8 +9,7 @@
     "skipLibCheck": true,
     "ignoreDeprecations": "5.0",
     "forceConsistentCasingInFileNames": true,
-    "jsx": "react-jsx",
-    "types": ["react", "react-dom"]
+    "jsx": "react-jsx"
   },
   "include": ["src/**/*", "api/**/*"]
 }
