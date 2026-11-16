@@ -14,7 +14,7 @@ import {
   formatDurationHuman,
   parseReaisToCents,
 } from "../utils/formatters.js";
-import { InvoicePdfDocument } from "../components/invoice-pdf.js";
+import { InvoicePdfDocument } from "../components/invoice-pdf";
 
 interface AiInsightBody {
   clientId?: string;
