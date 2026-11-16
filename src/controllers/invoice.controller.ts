@@ -3,7 +3,6 @@ import { Ollama } from "ollama";
 import { Resend } from "resend";
 import { InvoiceStatus } from "@prisma/client";
 import React from "react";
-import { renderToBuffer } from "@react-pdf/renderer";
 import { InvoiceModel } from "../models/invoice.model.js";
 import { prisma } from "../lib/prisma.js";
 import { AppError } from "../errors/app-error.js";
@@ -14,7 +13,7 @@ import {
   formatDurationHuman,
   parseReaisToCents,
 } from "../utils/formatters.js";
-import { InvoicePdfDocument } from "../components/invoice-pdf.js";
+
 
 interface AiInsightBody {
   clientId?: string;
@@ -612,6 +611,9 @@ Instruções:
     if (!invoice) {
       throw new AppError("INVOICE_NOT_FOUND", "Fatura não encontrada.", 404);
     }
+
+    const { renderToBuffer } = await import("@react-pdf/renderer");
+    const { InvoicePdfDocument } = await import("../components/invoice-pdf.js");
 
     const pdfBuffer = await renderToBuffer(
       React.createElement(InvoicePdfDocument, {
