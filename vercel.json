@@ -8,7 +8,7 @@
   ],
   "functions": {
     "api/**/*.js": {
-      "includeFiles": "node_modules/pdfkit/**/*"
+      "includeFiles": "node_modules/pdfkit/js/standard-fonts/**"
     }
   }
 }
