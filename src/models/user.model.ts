@@ -118,6 +118,13 @@ export class UserModel {
     });
   }
 
+  static async update(userId: string, data: { password?: string; mustChangePassword?: boolean }) {
+    return prisma.user.update({
+      where: { id: userId },
+      data,
+    });
+  }
+
   static async updateSettings(userId: string, data: UpdateUserSettingsInput) {
     return prisma.userSettings.upsert({
       where: { userId },
