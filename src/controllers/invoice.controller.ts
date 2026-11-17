@@ -591,6 +591,52 @@ Instruções:
     });
   }
 
+  static async exportCsv(req: Request, res: Response) {
+    const tenantId = req.user!.tenantId as string;
+    const { sub: userId, role } = req.user!;
+    const { month, clientId, projectId } = req.query;
+
+    const where: any = { tenantId };
+    if (role === "MEMBER") where.userId = userId;
+    if (clientId) where.project = { clientId };
+    if (projectId) where.projectId = projectId;
+
+    const entries = await prisma.timeEntry.findMany({
+      where,
+      include: { project: { include: { client: true } }, user: true },
+      orderBy: { start: "desc" },
+    });
+
+    const isMember = role === "MEMBER";
+    const header = isMember
+      ? "Data;Projeto;Atividade;Duração (HH:MM:SS);Faturável"
+      : "Data;Cliente;Projeto;Colaborador;Atividade;Duração (HH:MM:SS);Faturável;Taxa Hora (R$);Valor Total (R$);Status Fatura";
+
+    const rows = entries.map((e) => {
+      const dur = formatDurationHMS(e.durationSeconds || 0);
+      const rate = (e.hourlyRateCents || 0) / 100;
+      const total = (e.amountCents || 0) / 100;
+
+      const base = [
+        new Date(e.start).toLocaleDateString("pt-BR"),
+        ...(isMember ? [] : [e.project?.client?.name || "-"]),
+        e.project?.name || "-",
+        ...(isMember ? [] : [e.user?.name || "-"]),
+        e.description || "-",
+        dur,
+        e.billable ? "Sim" : "Não",
+        ...(isMember ? [] : [rate.toFixed(2), total.toFixed(2), "Pendente"]),
+      ];
+      return base.join(";");
+    });
+
+    const csvContent = "\uFEFF" + [header, ...rows].join("\n");
+
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", "attachment; filename=relatorio.csv");
+    return res.send(csvContent);
+  }
+
   static async listInvoices(req: Request, res: Response) {
     const tenantId = req.user!.tenantId as string;
     const clientId =

@@ -18,9 +18,10 @@ const financeGuard = [
 invoiceRoutes.use("/api/reports", ...financeGuard);
 invoiceRoutes.use("/api/invoices", ...financeGuard);
 
-invoiceRoutes.get("/api/reports/summary", InvoiceController.getReportSummary);
-invoiceRoutes.post("/api/reports/ai-insight", InvoiceController.generateAiInsight);
-invoiceRoutes.post("/api/reports/ai-summary", InvoiceController.generateAiInsight);
+invoiceRoutes.get("/api/reports/summary", ...financeGuard, InvoiceController.getReportSummary);
+invoiceRoutes.get("/api/reports/export/csv", authMiddleware, requireTenant, InvoiceController.exportCsv);
+invoiceRoutes.post("/api/reports/ai-insight", ...financeGuard, InvoiceController.generateAiInsight);
+invoiceRoutes.post("/api/reports/ai-summary", ...financeGuard, InvoiceController.generateAiInsight);
 
 invoiceRoutes.get("/api/invoices", InvoiceController.listInvoices);
 invoiceRoutes.get("/api/invoices/:id/pdf", InvoiceController.generatePdf);
