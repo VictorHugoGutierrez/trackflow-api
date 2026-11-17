@@ -3,7 +3,6 @@ import { Ollama } from "ollama";
 import { Resend } from "resend";
 import { InvoiceStatus } from "@prisma/client";
 import React from "react";
-import { renderToBuffer } from "@react-pdf/renderer";
 import { InvoiceModel } from "../models/invoice.model.js";
 import { prisma } from "../lib/prisma.js";
 import { AppError } from "../errors/app-error.js";
@@ -14,7 +13,7 @@ import {
   formatDurationHuman,
   parseReaisToCents,
 } from "../utils/formatters.js";
-import { InvoicePdfDocument } from "../components/invoice-pdf";
+
 
 interface AiInsightBody {
   clientId?: string;
