@@ -112,7 +112,7 @@ export class ProjectController {
     const tenantId = req.user!.tenantId as string;
     const { id } = req.params;
 
-    const result = await ProjectModel.deleteProject({ tenantId, id });
+    const result = await ProjectModel.deactivateProject({ tenantId, id });
     if (result.count === 0) {
       throw new AppError(
         "PROJECT_NOT_FOUND",

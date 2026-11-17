@@ -48,7 +48,7 @@ export class ClientController {
     const tenantId = req.user!.tenantId as string;
     const { id } = req.params;
 
-    const result = await ClientModel.deleteClient({ tenantId, id });
+    const result = await ClientModel.deactivateClient({ tenantId, id });
 
     if (result.count === 0) {
       throw new AppError(

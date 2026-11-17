@@ -228,9 +228,22 @@ export class ProjectModel {
     });
   }
 
-  static async deleteProject(data: DeleteProjectInput) {
+  static async deactivateProject(data: DeleteProjectInput) {
+    const project = await prisma.project.findFirst({
+        where: { id: data.id, tenantId: data.tenantId },
+        include: { timeEntries: true }
+    });
+
+    if (!project) return { count: 0 };
+
+    if (project.timeEntries.length > 0) {
+        return prisma.project.updateMany({
+            where: { id: data.id, tenantId: data.tenantId },
+            data: { active: false }
+        });
+    }
     return prisma.project.deleteMany({
-      where: { id: data.id, tenantId: data.tenantId },
+        where: { id: data.id, tenantId: data.tenantId }
     });
   }
 }

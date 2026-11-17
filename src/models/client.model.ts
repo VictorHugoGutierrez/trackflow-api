@@ -42,9 +42,22 @@ export class ClientModel {
         })
     }
 
-    static async deleteClient(data: DeleteClientInput){
+    static async deactivateClient(data: DeleteClientInput) {
+        const client = await prisma.client.findFirst({
+            where: { id: data.id, tenantId: data.tenantId },
+            include: { projects: true, invoices: true }
+        });
+
+        if (!client) return { count: 0 };
+
+        if (client.projects.length > 0 || client.invoices.length > 0) {
+            return prisma.client.updateMany({
+                where: { id: data.id, tenantId: data.tenantId },
+                data: { active: false }
+            });
+        }
         return prisma.client.deleteMany({
-            where:{ id: data.id, tenantId: data.tenantId }
-        })
+            where: { id: data.id, tenantId: data.tenantId }
+        });
     }
 }
