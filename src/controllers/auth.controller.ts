@@ -132,6 +132,7 @@ export class AuthController {
           email: user.email,
           avatarUrl: user.avatarUrl,
           role: user.role,
+          mustChangePassword: user.mustChangePassword,
         },
         tenant: {
           id: tenant.id,
@@ -207,6 +208,7 @@ export class AuthController {
           email: user.email,
           avatarUrl: user.avatarUrl,
           role: user.role,
+          mustChangePassword: user.mustChangePassword,
         },
         tenant: user.tenant
           ? {
@@ -216,6 +218,38 @@ export class AuthController {
             }
           : null,
       },
+    });
+  }
+
+  static async changePassword(req: Request, res: Response) {
+    const userId = req.user!.sub;
+    const { oldPassword, newPassword } = req.body;
+
+    if (!oldPassword || !newPassword) {
+      throw new AppError("VALIDATION_ERROR", "Senhas atuais e novas são obrigatórias.", 400);
+    }
+
+    const user = await UserModel.findById(userId);
+    if (!user || !user.password) {
+      throw new AppError("USER_NOT_FOUND", "Usuário não encontrado.", 404);
+    }
+
+    const isMatch = await bcrypt.compare(oldPassword, user.password);
+    if (!isMatch) {
+      throw new AppError("INVALID_PASSWORD", "Senha atual incorreta.", 401);
+    }
+
+    const saltRounds = 10;
+    const passwordHash = await bcrypt.hash(newPassword, saltRounds);
+
+    await UserModel.update(userId, {
+      password: passwordHash,
+      mustChangePassword: false,
+    });
+
+    return res.json({
+      success: true,
+      message: "Senha alterada com sucesso.",
     });
   }
 
