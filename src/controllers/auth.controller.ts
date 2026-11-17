@@ -34,6 +34,7 @@ interface SessionUser {
   role: Role;
   email: string;
   name: string;
+  active: boolean;
 }
 
 function issueAuthSession(res: Response, user: SessionUser): string {
@@ -49,6 +50,7 @@ function issueAuthSession(res: Response, user: SessionUser): string {
       role: user.role,
       email: user.email,
       name: user.name,
+      active: user.active,
     },
     jwtSecret,
     {
@@ -120,6 +122,7 @@ export class AuthController {
       role: user.role,
       email: user.email,
       name: user.name,
+      active: user.active,
     });
 
     return res.status(201).json({
@@ -157,7 +160,7 @@ export class AuthController {
     const normalizedEmail = email.trim().toLowerCase();
     const user = await UserModel.findByEmail(normalizedEmail);
 
-    if (!user) {
+    if (!user || !user.active) {
       throw new AppError(
         "INVALID_CREDENTIALS",
         "E-mail ou senha inválidos.",
@@ -196,6 +199,7 @@ export class AuthController {
       role: user.role,
       email: user.email,
       name: user.name,
+      active: user.active,
     });
 
     return res.status(200).json({
@@ -344,6 +348,7 @@ export class AuthController {
       role: user!.role,
       email: user!.email,
       name: user!.name,
+      active: user!.active,
     });
 
     return res.status(200).json({
@@ -451,6 +456,7 @@ export class AuthController {
       role: updated.role,
       email: updated.email,
       name: updated.name,
+      active: updated.active,
     });
 
     return res.json({

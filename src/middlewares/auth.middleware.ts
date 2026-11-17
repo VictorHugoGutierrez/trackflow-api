@@ -32,6 +32,9 @@ export function authMiddleware(
     }
 
     const decoded = jwt.verify(token, jwtSecret) as UserPayload;
+    if (!decoded.active) {
+      throw new AppError("UNAUTHORIZED", "Conta inativa.", 401);
+    }
     req.user = decoded;
     return next();
   } catch (error) {

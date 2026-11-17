@@ -160,6 +160,7 @@ export class UserModel {
         avatarUrl: true,
         role: true,
         tenantId: true,
+        active: true,
       },
     });
   }
