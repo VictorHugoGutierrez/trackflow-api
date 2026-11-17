@@ -577,6 +577,14 @@ Instruções:
     const paidAt = status === InvoiceStatus.pago ? new Date() : null;
     const updated = await InvoiceModel.updateStatus(id, status, paidAt);
 
+    // [Hardening] Se cancelada, desvincular timeEntries
+    if (status === InvoiceStatus.cancelado) {
+      await prisma.timeEntry.updateMany({
+        where: { invoiceId: id },
+        data: { invoiceId: null },
+      });
+    }
+
     return res.json({
       success: true,
       data: updated,
