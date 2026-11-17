@@ -4,6 +4,14 @@ import { prisma } from "../lib/prisma.js";
 import { TimeEntryModel } from "../models/time-entry.model.js";
 import { AppError } from "../errors/app-error.js";
 
+async function getUserHourlyRateCents(userId: string): Promise<number> {
+  const settings = await prisma.userSettings.findUnique({
+    where: { userId },
+    select: { hourlyRateCents: true },
+  });
+  return settings?.hourlyRateCents ?? 0;
+}
+
 interface StartBody {
   projectId?: string;
   description?: string;
@@ -77,6 +85,7 @@ export class TimeEntryController {
       projectId: body.projectId,
       description: body.description,
       billable: body.billable,
+      hourlyRateCents: await getUserHourlyRateCents(userId),
     });
 
     return res.status(201).json({
@@ -169,6 +178,7 @@ export class TimeEntryController {
       billable: body.billable,
       start: startDate,
       end: endDate,
+      hourlyRateCents: await getUserHourlyRateCents(userId),
     });
 
     return res.status(201).json({
@@ -228,6 +238,7 @@ export class TimeEntryController {
       billable: body.billable,
       start: startDate,
       end: endDate,
+      hourlyRateCents: await getUserHourlyRateCents(userId),
     });
 
     if (!updated) {

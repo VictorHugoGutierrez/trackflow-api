@@ -8,6 +8,7 @@ interface StartTimeEntryInput {
   projectId?: string;
   description?: string;
   billable?: boolean;
+  hourlyRateCents: number;
 }
 
 interface StopTimeEntryInput {
@@ -27,6 +28,7 @@ interface CreateManualTimeEntryInput {
   billable?: boolean;
   start: Date;
   end: Date;
+  hourlyRateCents: number;
 }
 
 interface UpdateTimeEntryInput {
@@ -38,6 +40,7 @@ interface UpdateTimeEntryInput {
   billable?: boolean;
   start?: Date;
   end?: Date;
+  hourlyRateCents: number;
 }
 
 interface ListTimeEntriesFilter {
@@ -88,6 +91,7 @@ export class TimeEntryModel {
         end: null,
         durationSeconds: null,
         amountCents: 0,
+        hourlyRateCents: data.hourlyRateCents,
       },
       include: TIME_ENTRY_INCLUDE,
     });
@@ -148,11 +152,8 @@ export class TimeEntryModel {
       Math.floor((data.end.getTime() - data.start.getTime()) / 1000),
     );
     const billable = data.billable ?? true;
-    const hourlyRateCents = billable
-      ? await getUserHourlyRateCents(data.userId)
-      : 0;
     const amountCents = billable
-      ? calculateAmountCents(durationSeconds, hourlyRateCents)
+      ? calculateAmountCents(durationSeconds, data.hourlyRateCents)
       : 0;
 
     const created = await prisma.timeEntry.create({
@@ -166,6 +167,7 @@ export class TimeEntryModel {
         end: data.end,
         durationSeconds,
         amountCents,
+        hourlyRateCents: data.hourlyRateCents,
       },
       include: TIME_ENTRY_INCLUDE,
     });
@@ -206,8 +208,7 @@ export class TimeEntryModel {
 
     let amountCents = 0;
     if (newBillable && durationSeconds !== null && durationSeconds !== undefined) {
-      const hourlyRateCents = await getUserHourlyRateCents(data.userId);
-      amountCents = calculateAmountCents(durationSeconds, hourlyRateCents);
+      amountCents = calculateAmountCents(durationSeconds, data.hourlyRateCents);
     }
 
     const updated = await prisma.timeEntry.update({
@@ -217,6 +218,7 @@ export class TimeEntryModel {
         end: newEnd,
         durationSeconds,
         amountCents,
+        hourlyRateCents: data.hourlyRateCents,
         description:
           data.description !== undefined ? data.description : entry.description,
         projectId: newProjectId,
