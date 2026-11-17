@@ -63,12 +63,12 @@ export class TimeEntryController {
 
     const active = await TimeEntryModel.findActive(tenantId, userId);
     if (active) {
-      throw new AppError(
-        "TIMER_ALREADY_RUNNING",
-        "Já existe um cronômetro ativo em andamento.",
-        409,
-        { activeEntryId: active.id },
-      );
+      // [Hardening] Se existir cronômetro ativo, encerra automaticamente
+      await TimeEntryModel.stop({
+        id: active.id,
+        tenantId,
+        userId,
+      });
     }
 
     const entry = await TimeEntryModel.start({
