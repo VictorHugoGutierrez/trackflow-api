@@ -612,21 +612,19 @@ Instruções:
       throw new AppError("INVOICE_NOT_FOUND", "Fatura não encontrada.", 404);
     }
 
-    const { renderToBuffer } = await import("@react-pdf/renderer");
-    const { InvoicePdfDocument } = await import("../components/invoice-pdf.js");
+    const { generateInvoicePdf } = await import("../services/pdf.service.js");
 
-    const pdfBuffer = await renderToBuffer(
-      React.createElement(InvoicePdfDocument, {
-        tenantName: invoice.tenant?.name || "TrackFlow",
-        clientName: invoice.client.name,
-        monthRef: invoice.monthRef,
-        durationSeconds: invoice.durationSeconds,
-        amountCents: invoice.amountCents,
-      })
-    );
+    const pdfBuffer = await generateInvoicePdf({
+      tenantName: invoice.tenant?.name || "TrackFlow",
+      clientName: invoice.client.name,
+      monthRef: invoice.monthRef,
+      durationSeconds: invoice.durationSeconds,
+      amountCents: invoice.amountCents,
+    });
 
     res.set({
       "Content-Type": "application/pdf",
+      "Content-Disposition": `attachment; filename="fatura-${invoice.id}.pdf"`,
       "Content-Length": pdfBuffer.length,
     });
     return res.send(pdfBuffer);
