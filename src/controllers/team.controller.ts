@@ -199,7 +199,7 @@ export class TeamController {
       throw new AppError("FORBIDDEN", "Gestores não possuem permissão para remover outros gestores.", 403);
     }
 
-    await TeamModel.deleteMember(id);
+    await TeamModel.deactivateMember(id);
 
     if (req.path.startsWith("/dashboard") && req.accepts("html")) {
       return res.redirect("/dashboard/team");

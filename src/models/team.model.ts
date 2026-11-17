@@ -311,9 +311,25 @@ export class TeamModel {
     };
   }
 
-  static async deleteMember(id: string) {
-    return prisma.user.delete({
+  static async deactivateMember(id: string) {
+    const user = await prisma.user.findUnique({
       where: { id },
+      include: { timeEntries: true },
     });
+
+    if (!user) return false;
+
+    // Se tiver apontamentos, inativa. Se não, deleta.
+    if (user.timeEntries.length > 0) {
+      await prisma.user.update({
+        where: { id },
+        data: { active: false },
+      });
+    } else {
+      await prisma.user.delete({
+        where: { id },
+      });
+    }
+    return true;
   }
 }
