@@ -73,6 +73,11 @@ export class AdminModel {
       (((todayDurationResult._sum.durationSeconds || 0) / 3600)).toFixed(1),
     );
 
+    const planDistribution = planCounts.map((p) => ({
+      plan: p.plan,
+      count: p._count.id,
+    }));
+
     return {
       overview: {
         totalTenants,
@@ -81,15 +86,15 @@ export class AdminModel {
         totalUsers,
         totalTimeEntries,
         todayHours,
+        hoursTrackedToday: todayHours,
         aiReportsGenerated: aiReportsCount,
       },
       financial: {
         estimatedMrr: Number(calculatedMrr.toFixed(2)),
+        estimatedMRR: Number(calculatedMrr.toFixed(2)),
         currency: "BRL",
-        distributionByPlan: planCounts.map((p) => ({
-          plan: p.plan,
-          count: p._count.id,
-        })),
+        distributionByPlan: planDistribution,
+        tenantsByPlan: planDistribution,
       },
     };
   }
