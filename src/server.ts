@@ -59,7 +59,7 @@ app.use(teamRoutes);
 app.use(invoiceRoutes);
 app.use(adminRoutes);
 app.use(aiRoutes);
-app.use(reportRoutes);
+app.use("/api/reports", reportRoutes);
 
 app.use((_req: Request, res: Response) => {
   return res.status(404).json({
