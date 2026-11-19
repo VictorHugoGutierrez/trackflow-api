@@ -250,16 +250,20 @@ export class AuthController {
         mustChangePassword: true,
       });
 
-      await resend.emails.send({
-        from: "TrackFlow <noreply@trackflow.com>",
-        to: normalizedEmail,
-        subject: "Recuperação de Senha - TrackFlow",
-        html: `<p>Olá, ${user.name}.</p>
-               <p>Recebemos uma solicitação de redefinição de senha para sua conta.</p>
-               <p>Sua nova senha temporária é: <strong>${temporaryPassword}</strong></p>
-               <p>Ao realizar o login, será obrigatória a alteração desta senha.</p>
-               <p>Atenciosamente,<br>Equipe TrackFlow</p>`,
-      });
+      try {
+        await resend.emails.send({
+          from: "TrackFlow <noreply@trackflow.com>",
+          to: normalizedEmail,
+          subject: "Recuperação de Senha - TrackFlow",
+          html: `<p>Olá, ${user.name}.</p>
+                 <p>Recebemos uma solicitação de redefinição de senha para sua conta.</p>
+                 <p>Sua nova senha temporária é: <strong>${temporaryPassword}</strong></p>
+                 <p>Ao realizar o login, será obrigatória a alteração desta senha.</p>
+                 <p>Atenciosamente,<br>Equipe TrackFlow</p>`,
+        });
+      } catch (mailErr) {
+        console.warn("[forgotPassword] Falha ao enviar e-mail via Resend:", mailErr);
+      }
     }
 
     return res.status(200).json({
