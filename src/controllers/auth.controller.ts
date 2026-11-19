@@ -58,13 +58,11 @@ function issueAuthSession(res: Response, user: SessionUser): string {
     },
   );
 
-  const isProduction = process.env.NODE_ENV === "production";
-
   res.cookie("trackflow_session", token, {
     path: "/",
     httpOnly: true,
-    secure: isProduction,
-    sameSite: isProduction ? "none" : "lax",
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
     maxAge: 7 * 24 * 60 * 60 * 1000,
   });
 
