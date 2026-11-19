@@ -93,6 +93,7 @@ export class TeamModel {
           email: data.email.toLowerCase().trim(),
           password: data.passwordHash,
           role: data.role,
+          mustChangePassword: true,
         },
       });
 

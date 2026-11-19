@@ -220,6 +220,7 @@ export class AdminModel {
           email: data.ownerEmail.toLowerCase().trim(),
           password: data.ownerPasswordHash,
           role: Role.OWNER,
+          mustChangePassword: true,
         },
       });
 
