@@ -15,6 +15,7 @@ import { projectRoutes } from "./routes/project.routes.js";
 import { teamRoutes } from "./routes/team.routes.js";
 import { invoiceRoutes } from "./routes/invoice.routes.js";
 import { aiRoutes } from "./routes/ai.routes.js";
+import { reportRoutes } from "./routes/report.routes.js";
 
 dotenv.config();
 
@@ -58,6 +59,7 @@ app.use(teamRoutes);
 app.use(invoiceRoutes);
 app.use(adminRoutes);
 app.use(aiRoutes);
+app.use(reportRoutes);
 
 app.use((_req: Request, res: Response) => {
   return res.status(404).json({
