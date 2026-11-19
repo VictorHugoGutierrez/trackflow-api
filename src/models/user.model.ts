@@ -161,6 +161,7 @@ export class UserModel {
         role: true,
         tenantId: true,
         active: true,
+        mustChangePassword: true,
       },
     });
   }

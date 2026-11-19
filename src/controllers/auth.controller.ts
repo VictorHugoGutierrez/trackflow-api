@@ -35,6 +35,7 @@ interface SessionUser {
   email: string;
   name: string;
   active: boolean;
+  mustChangePassword: boolean;
 }
 
 function issueAuthSession(res: Response, user: SessionUser): string {
@@ -51,6 +52,7 @@ function issueAuthSession(res: Response, user: SessionUser): string {
       email: user.email,
       name: user.name,
       active: user.active,
+      mustChangePassword: user.mustChangePassword,
     },
     jwtSecret,
     {
@@ -121,6 +123,7 @@ export class AuthController {
       email: user.email,
       name: user.name,
       active: user.active,
+      mustChangePassword: user.mustChangePassword,
     });
 
     return res.status(201).json({
@@ -198,6 +201,7 @@ export class AuthController {
       email: user.email,
       name: user.name,
       active: user.active,
+      mustChangePassword: user.mustChangePassword,
     });
 
     return res.status(200).json({
@@ -244,8 +248,18 @@ export class AuthController {
     const saltRounds = 10;
     const passwordHash = await bcrypt.hash(newPassword, saltRounds);
 
-    await UserModel.update(userId, {
+    const updatedUser = await UserModel.update(userId, {
       password: passwordHash,
+      mustChangePassword: false,
+    });
+
+    issueAuthSession(res, {
+      id: updatedUser.id,
+      tenantId: updatedUser.tenantId,
+      role: updatedUser.role,
+      email: updatedUser.email,
+      name: updatedUser.name,
+      active: updatedUser.active,
       mustChangePassword: false,
     });
 
@@ -347,6 +361,7 @@ export class AuthController {
       email: user!.email,
       name: user!.name,
       active: user!.active,
+      mustChangePassword: user!.mustChangePassword,
     });
 
     return res.status(200).json({
@@ -455,6 +470,7 @@ export class AuthController {
       email: updated.email,
       name: updated.name,
       active: updated.active,
+      mustChangePassword: updated.mustChangePassword,
     });
 
     return res.json({
