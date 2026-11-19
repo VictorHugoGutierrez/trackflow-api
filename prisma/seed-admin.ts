@@ -25,6 +25,7 @@ async function main() {
         role: Role.SUPER_ADMIN,
         password: passwordHash,
         tenantId: null,
+        mustChangePassword: false,
       },
     });
 
@@ -52,6 +53,7 @@ async function main() {
       name,
       password: passwordHash,
       role: Role.SUPER_ADMIN,
+      mustChangePassword: false,
     },
   });
 
