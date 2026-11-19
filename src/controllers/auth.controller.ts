@@ -6,6 +6,7 @@ import { Role } from "@prisma/client";
 import { UserModel } from "../models/user.model.js";
 import { AppError } from "../errors/app-error.js";
 import { parseReaisToCents } from "../utils/formatters.js";
+import { resend } from "../lib/resend.js";
 
 function getGoogleClient(): OAuth2Client {
   return new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
@@ -224,6 +225,46 @@ export class AuthController {
             }
           : null,
       },
+    });
+  }
+
+  static async forgotPassword(req: Request, res: Response) {
+    const { email } = req.body;
+
+    if (!email || typeof email !== "string" || !email.trim()) {
+      return res.status(200).json({
+        success: true,
+        message: "Se o e-mail estiver cadastrado, você receberá as instruções de acesso em instantes.",
+      });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    const user = await UserModel.findByEmail(normalizedEmail);
+
+    if (user && user.active) {
+      const temporaryPassword = Math.random().toString(36).slice(-8);
+      const passwordHash = await bcrypt.hash(temporaryPassword, 10);
+
+      await UserModel.update(user.id, {
+        password: passwordHash,
+        mustChangePassword: true,
+      });
+
+      await resend.emails.send({
+        from: "TrackFlow <noreply@trackflow.com>",
+        to: normalizedEmail,
+        subject: "Recuperação de Senha - TrackFlow",
+        html: `<p>Olá, ${user.name}.</p>
+               <p>Recebemos uma solicitação de redefinição de senha para sua conta.</p>
+               <p>Sua nova senha temporária é: <strong>${temporaryPassword}</strong></p>
+               <p>Ao realizar o login, será obrigatória a alteração desta senha.</p>
+               <p>Atenciosamente,<br>Equipe TrackFlow</p>`,
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Se o e-mail estiver cadastrado, você receberá as instruções de acesso em instantes.",
     });
   }
 
