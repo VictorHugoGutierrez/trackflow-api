@@ -674,6 +674,8 @@ Instruções:
       monthRef: invoice.monthRef,
       durationSeconds: invoice.durationSeconds,
       amountCents: invoice.amountCents,
+      status: invoice.status,
+      aiSummary: invoice.aiSummary,
     });
 
     res.set({
