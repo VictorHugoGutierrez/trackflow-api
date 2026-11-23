@@ -298,7 +298,7 @@ export class AuthController {
       mustChangePassword: false,
     });
 
-    issueAuthSession(res, {
+    const token = issueAuthSession(res, {
       id: updatedUser.id,
       tenantId: updatedUser.tenantId,
       role: updatedUser.role,
@@ -311,6 +311,7 @@ export class AuthController {
     return res.json({
       success: true,
       message: "Senha alterada com sucesso.",
+      data: { token },
     });
   }
 
