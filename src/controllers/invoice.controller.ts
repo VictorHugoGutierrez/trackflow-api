@@ -1,10 +1,10 @@
 import { Request, Response } from "express";
-import { Ollama } from "ollama";
 import { Resend } from "resend";
 import { InvoiceStatus } from "@prisma/client";
 import React from "react";
 import { InvoiceModel } from "../models/invoice.model.js";
 import { prisma } from "../lib/prisma.js";
+import { runOllamaChat } from "../lib/ollama.js";
 import { AppError } from "../errors/app-error.js";
 import {
   calculateAmountCents,
@@ -52,30 +52,6 @@ interface SendInvoiceBody {
   to?: string;
   recipientEmail?: string;
   subject?: string;
-}
-
-async function runOllamaPrompt(prompt: string): Promise<string> {
-  const ollama = new Ollama({
-    host: "https://ollama.com",
-    headers: {
-      Authorization: "Bearer " + (process.env.OLLAMA_API_KEY || ""),
-    },
-  });
-
-  const response = await ollama.chat({
-    model: "gpt-oss:120b",
-    messages: [{ role: "user", content: prompt }],
-    stream: true,
-  });
-
-  let content = "";
-  for await (const part of response) {
-    if (part.message?.content) {
-      content += part.message.content;
-    }
-  }
-
-  return content.trim();
 }
 
 function createResendClient(): Resend {
@@ -316,14 +292,9 @@ Instruções:
 - Destaque o valor gerado pelas entregas e a transparência na apuração das horas.
 - Não invente valores monetários que não foram fornecidos; foque nas entregas e no tempo dedicado (${humanDuration}).`;
 
-    let aiSummaryText = "";
-
-    try {
-      aiSummaryText = await runOllamaPrompt(finalPrompt);
-    } catch (err: any) {
-      console.error("Erro na chamada ao Ollama:", err?.message || err);
-      aiSummaryText = `Resumo Executivo de Entregas - ${clientName}\n\nDurante o período de referência (${monthRef || "mensal"}), foram dedicadas ${humanDuration} (${formattedDuration}) em atividades técnicas e operacionais vinculadas aos projetos contratados. Todas as entregas seguiram o cronograma estabelecido com apontamento auditado na plataforma TrackFlow.`;
-    }
+    const aiSummaryText = await runOllamaChat([
+      { role: "user", content: finalPrompt },
+    ]);
 
     return res.json({
       success: true,
@@ -433,10 +404,17 @@ Instruções:
     let finalAiSummary = bodyAiSummary;
     if (!finalAiSummary && generateAi) {
       try {
-        finalAiSummary = await runOllamaPrompt(
-          `Gere um resumo executivo curto em português (2 parágrafos) para a fatura do cliente "${client.name}" referente a ${monthRef}, totalizando ${formatDurationHuman(finalDurationSeconds)} trabalhadas e ${formatCurrencyBRL(finalAmountCents)}.`,
+        finalAiSummary = await runOllamaChat([
+          {
+            role: "user",
+            content: `Gere um resumo executivo curto em português (2 parágrafos) para a fatura do cliente "${client.name}" referente a ${monthRef}, totalizando ${formatDurationHuman(finalDurationSeconds)} trabalhadas e ${formatCurrencyBRL(finalAmountCents)}.`,
+          },
+        ]);
+      } catch (err: any) {
+        console.warn(
+          "Falha ao gerar resumo IA durante emissão de fatura (usando contingência):",
+          err?.message || err,
         );
-      } catch {
         finalAiSummary = `Serviços prestados ao cliente ${client.name} durante ${monthRef}, totalizando ${formatDurationHuman(finalDurationSeconds)} apuradas.`;
       }
     }
@@ -590,7 +568,6 @@ Instruções:
     const paidAt = status === InvoiceStatus.pago ? new Date() : null;
     const updated = await InvoiceModel.updateStatus(id, status, paidAt);
 
-    // [Hardening] Se cancelada, desvincular timeEntries
     if (status === InvoiceStatus.cancelado) {
       await prisma.timeEntry.updateMany({
         where: { invoiceId: id },

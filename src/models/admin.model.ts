@@ -1,4 +1,5 @@
 import { prisma } from "../lib/prisma.js";
+import { checkOllamaHealth } from "../lib/ollama.js";
 import { Role } from "@prisma/client";
 
 interface UpdateTenantInput {
@@ -264,18 +265,83 @@ export class AdminModel {
   }
 
   static async getSystemLogs() {
-    const dbConnected = await prisma
-      .$queryRaw`SELECT 1`
-      .then(() => true)
-      .catch(() => false);
-
-    const ollamaModel = process.env.OLLAMA_API_MODEL || "gemma4";
     const resendConfigured = !!process.env.RESEND_API_KEY;
 
-    const [totalAiInvoices, pendingInvoices] = await Promise.all([
+    const [
+      dbConnected,
+      ollamaHealth,
+      totalAiInvoices,
+      pendingInvoices,
+      recentInvoices,
+    ] = await Promise.all([
+      prisma
+        .$queryRaw`SELECT 1`
+        .then(() => true)
+        .catch(() => false),
+      checkOllamaHealth(),
       prisma.invoice.count({ where: { aiSummary: { not: null } } }),
       prisma.invoice.count({ where: { status: "pendente" } }),
+      prisma.invoice.findMany({
+        take: 5,
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          monthRef: true,
+          status: true,
+          aiSummary: true,
+          createdAt: true,
+          client: { select: { name: true } },
+        },
+      }),
     ]);
+
+    const recentEvents: Array<{
+      id: string;
+      type: string;
+      status: string;
+      message: string;
+      timestamp: string;
+    }> = [];
+
+    if (ollamaHealth.status !== "connected") {
+      recentEvents.push({
+        id: "ollama-health",
+        type: "OLLAMA_SUMMARY",
+        status: "ERROR",
+        message:
+          ollamaHealth.message ||
+          `Serviço Ollama (${ollamaHealth.model}) indisponível: ${ollamaHealth.status}`,
+        timestamp: new Date().toISOString(),
+      });
+    } else if (ollamaHealth.message) {
+      recentEvents.push({
+        id: "ollama-model-check",
+        type: "OLLAMA_SUMMARY",
+        status: "PENDING",
+        message: ollamaHealth.message,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    for (const inv of recentInvoices) {
+      const clientName = inv.client?.name || "Cliente";
+      if (inv.aiSummary) {
+        recentEvents.push({
+          id: `inv-ai-${inv.id.slice(0, 8)}`,
+          type: "OLLAMA_SUMMARY",
+          status: "SUCCESS",
+          message: `Resumo executivo gerado para ${clientName} (${inv.monthRef})`,
+          timestamp: inv.createdAt.toISOString(),
+        });
+      }
+      recentEvents.push({
+        id: `inv-${inv.id.slice(0, 8)}`,
+        type: "RESEND_EMAIL",
+        status: inv.status === "pago" ? "DELIVERED" : "PENDING",
+        message: `Fatura ${inv.monthRef} de ${clientName} (${inv.status})`,
+        timestamp: inv.createdAt.toISOString(),
+      });
+    }
 
     return {
       services: {
@@ -284,31 +350,20 @@ export class AdminModel {
           provider: "PostgreSQL (Neon)",
         },
         ollama: {
-          status: "connected",
-          model: ollamaModel,
+          status: ollamaHealth.status,
+          provider: "Ollama Cloud",
+          model: ollamaHealth.model,
+          resolvedModel: ollamaHealth.resolvedModel,
+          host: ollamaHealth.host,
           totalReportsProcessed: totalAiInvoices,
+          ...(ollamaHealth.message ? { message: ollamaHealth.message } : {}),
         },
         resend: {
           status: resendConfigured ? "configured" : "missing_api_key",
           pendingDispatches: pendingInvoices,
         },
       },
-      recentEvents: [
-        {
-          id: "evt-1",
-          type: "OLLAMA_SUMMARY",
-          status: "SUCCESS",
-          message: "Resumo executivo de fatura gerado com sucesso",
-          timestamp: new Date().toISOString(),
-        },
-        {
-          id: "evt-2",
-          type: "RESEND_EMAIL",
-          status: "DELIVERED",
-          message: "Notificação de fatura entregue ao cliente",
-          timestamp: new Date(Date.now() - 3600000).toISOString(),
-        },
-      ],
+      recentEvents,
     };
   }
 }
