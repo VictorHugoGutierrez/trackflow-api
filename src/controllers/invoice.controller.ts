@@ -233,6 +233,19 @@ export class InvoiceController {
       clientName = client.name;
     }
 
+    if (projectId) {
+      const project = await prisma.project.findFirst({
+        where: { id: projectId, tenantId },
+      });
+      if (!project) {
+        throw new AppError(
+          "PROJECT_NOT_FOUND",
+          "Projeto não encontrado neste workspace.",
+          404,
+        );
+      }
+    }
+
     const where: any = {
       tenantId,
       end: { not: null },
