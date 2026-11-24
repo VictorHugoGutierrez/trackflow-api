@@ -65,6 +65,7 @@ export class UserModel {
           name: data.name.trim(),
           password: data.passwordHash,
           role: Role.OWNER,
+          mustChangePassword: false,
         },
       });
 
@@ -100,6 +101,7 @@ export class UserModel {
           name: data.name,
           avatarUrl: data.avatarUrl,
           role: Role.OWNER,
+          mustChangePassword: false,
         },
       });
 
@@ -122,6 +124,10 @@ export class UserModel {
     return prisma.user.update({
       where: { id: userId },
       data,
+      include: {
+        tenant: true,
+        settings: true,
+      },
     });
   }
 
@@ -162,6 +168,19 @@ export class UserModel {
         tenantId: true,
         active: true,
         mustChangePassword: true,
+        tenant: {
+          select: {
+            name: true,
+            plan: true,
+          },
+        },
+        settings: {
+          select: {
+            pomodoroWork: true,
+            pomodoroBreak: true,
+            theme: true,
+          },
+        },
       },
     });
   }

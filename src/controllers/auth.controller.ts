@@ -49,11 +49,16 @@ interface LoginBody {
 interface SessionUser {
   id: string;
   tenantId?: string | null;
+  tenantName?: string | null;
+  tenantPlan?: string | null;
   role: Role;
   email: string;
   name: string;
   active: boolean;
   mustChangePassword: boolean;
+  pomodoroWork?: number;
+  pomodoroBreak?: number;
+  theme?: string;
 }
 
 function issueAuthSession(res: Response, user: SessionUser): string {
@@ -66,11 +71,16 @@ function issueAuthSession(res: Response, user: SessionUser): string {
     {
       sub: user.id,
       tenantId: user.tenantId ?? null,
+      tenantName: user.tenantName ?? null,
+      tenantPlan: user.tenantPlan ?? null,
       role: user.role,
       email: user.email,
       name: user.name,
       active: user.active,
       mustChangePassword: user.mustChangePassword,
+      pomodoroWork: user.pomodoroWork ?? 25,
+      pomodoroBreak: user.pomodoroBreak ?? 5,
+      theme: user.theme ?? "dark",
     },
     jwtSecret,
     {
@@ -127,7 +137,7 @@ export class AuthController {
     const saltRounds = 10;
     const passwordHash = await bcrypt.hash(password, saltRounds);
 
-    const { user, tenant } = await UserModel.createOwnerWithPassword({
+    const { user, tenant, settings } = await UserModel.createOwnerWithPassword({
       name: name.trim(),
       email: normalizedEmail,
       passwordHash,
@@ -137,11 +147,16 @@ export class AuthController {
     const token = issueAuthSession(res, {
       id: user.id,
       tenantId: user.tenantId,
+      tenantName: tenant.name,
+      tenantPlan: tenant.plan,
       role: user.role,
       email: user.email,
       name: user.name,
       active: user.active,
       mustChangePassword: user.mustChangePassword,
+      pomodoroWork: settings.pomodoroWork,
+      pomodoroBreak: settings.pomodoroBreak,
+      theme: settings.theme,
     });
 
     await sendWelcomeRegisterEmail({
@@ -222,11 +237,16 @@ export class AuthController {
     const token = issueAuthSession(res, {
       id: user.id,
       tenantId: user.tenantId,
+      tenantName: user.tenant?.name ?? null,
+      tenantPlan: user.tenant?.plan ?? null,
       role: user.role,
       email: user.email,
       name: user.name,
       active: user.active,
       mustChangePassword: user.mustChangePassword,
+      pomodoroWork: user.settings?.pomodoroWork ?? 25,
+      pomodoroBreak: user.settings?.pomodoroBreak ?? 5,
+      theme: user.settings?.theme ?? "dark",
     });
 
     return res.status(200).json({
@@ -290,10 +310,18 @@ export class AuthController {
 
   static async changePassword(req: Request, res: Response) {
     const userId = req.user!.sub;
-    const { oldPassword, newPassword } = req.body;
+    const { oldPassword, newPassword } = req.body || {};
 
     if (!oldPassword || !newPassword) {
       throw new AppError("VALIDATION_ERROR", "Senhas atuais e novas são obrigatórias.", 400);
+    }
+
+    if (typeof newPassword !== "string" || newPassword.length < 6) {
+      throw new AppError(
+        "VALIDATION_ERROR",
+        "A nova senha deve conter no mínimo 6 caracteres.",
+        400,
+      );
     }
 
     const user = await UserModel.findById(userId);
@@ -317,11 +345,16 @@ export class AuthController {
     const token = issueAuthSession(res, {
       id: updatedUser.id,
       tenantId: updatedUser.tenantId,
+      tenantName: updatedUser.tenant?.name ?? null,
+      tenantPlan: updatedUser.tenant?.plan ?? null,
       role: updatedUser.role,
       email: updatedUser.email,
       name: updatedUser.name,
       active: updatedUser.active,
       mustChangePassword: false,
+      pomodoroWork: updatedUser.settings?.pomodoroWork ?? 25,
+      pomodoroBreak: updatedUser.settings?.pomodoroBreak ?? 5,
+      theme: updatedUser.settings?.theme ?? "dark",
     });
 
     await sendPasswordChangedEmail({
@@ -332,6 +365,82 @@ export class AuthController {
     return res.json({
       success: true,
       message: "Senha alterada com sucesso.",
+      data: { token },
+    });
+  }
+
+  static async completeFirstAccess(req: Request, res: Response) {
+    const userId = req.user!.sub;
+    const nextPwd = req.body?.newPassword || req.body?.password;
+    const oldPassword = req.body?.oldPassword;
+
+    if (typeof nextPwd !== "string" || nextPwd.length < 6) {
+      throw new AppError(
+        "VALIDATION_ERROR",
+        "A nova senha deve conter no mínimo 6 caracteres.",
+        400,
+      );
+    }
+
+    const user = await UserModel.findById(userId);
+    if (!user) {
+      throw new AppError("USER_NOT_FOUND", "Usuário não encontrado.", 404);
+    }
+
+    if (!user.mustChangePassword) {
+      if (!oldPassword || typeof oldPassword !== "string") {
+        throw new AppError(
+          "BAD_REQUEST",
+          "Troca de primeiro acesso já concluída. Utilize a alteração de senha padrão.",
+          400,
+        );
+      }
+      if (user.password) {
+        const isOldValid = await bcrypt.compare(oldPassword, user.password);
+        if (!isOldValid) {
+          throw new AppError("INVALID_PASSWORD", "Senha atual incorreta.", 401);
+        }
+      }
+    } else if (user.password) {
+      const isSameAsTemp = await bcrypt.compare(nextPwd, user.password);
+      if (isSameAsTemp) {
+        throw new AppError(
+          "VALIDATION_ERROR",
+          "A nova senha deve ser diferente da senha temporária.",
+          400,
+        );
+      }
+    }
+
+    const passwordHash = await bcrypt.hash(nextPwd, 10);
+    const updatedUser = await UserModel.update(userId, {
+      password: passwordHash,
+      mustChangePassword: false,
+    });
+
+    const token = issueAuthSession(res, {
+      id: updatedUser.id,
+      tenantId: updatedUser.tenantId,
+      tenantName: updatedUser.tenant?.name ?? null,
+      tenantPlan: updatedUser.tenant?.plan ?? null,
+      role: updatedUser.role,
+      email: updatedUser.email,
+      name: updatedUser.name,
+      active: updatedUser.active,
+      mustChangePassword: false,
+      pomodoroWork: updatedUser.settings?.pomodoroWork ?? 25,
+      pomodoroBreak: updatedUser.settings?.pomodoroBreak ?? 5,
+      theme: updatedUser.settings?.theme ?? "dark",
+    });
+
+    await sendPasswordChangedEmail({
+      userName: updatedUser.name,
+      userEmail: updatedUser.email,
+    });
+
+    return res.json({
+      success: true,
+      message: "Senha definida com sucesso.",
       data: { token },
     });
   }
@@ -409,6 +518,7 @@ export class AuthController {
     }
 
     let tenant = user?.tenant;
+    let settings = (user as any)?.settings;
 
     if (!user) {
       const result = await UserModel.createOwnerWithTenant({
@@ -419,16 +529,22 @@ export class AuthController {
 
       user = result.user as any;
       tenant = result.tenant as any;
+      settings = result.settings as any;
     }
 
     const token = issueAuthSession(res, {
       id: user!.id,
       tenantId: user!.tenantId,
+      tenantName: tenant?.name ?? null,
+      tenantPlan: tenant?.plan ?? null,
       role: user!.role,
       email: user!.email,
       name: user!.name,
       active: user!.active,
       mustChangePassword: user!.mustChangePassword,
+      pomodoroWork: settings?.pomodoroWork ?? 25,
+      pomodoroBreak: settings?.pomodoroBreak ?? 5,
+      theme: settings?.theme ?? "dark",
     });
 
     return res.status(200).json({
@@ -515,9 +631,31 @@ export class AuthController {
       currency: typeof currency === "string" ? currency : undefined,
     });
 
+    const refreshedUser = await UserModel.findById(userId);
+    let token: string | undefined;
+    if (refreshedUser) {
+      token = issueAuthSession(res, {
+        id: refreshedUser.id,
+        tenantId: refreshedUser.tenantId,
+        tenantName: refreshedUser.tenant?.name ?? null,
+        tenantPlan: refreshedUser.tenant?.plan ?? null,
+        role: refreshedUser.role,
+        email: refreshedUser.email,
+        name: refreshedUser.name,
+        active: refreshedUser.active,
+        mustChangePassword: refreshedUser.mustChangePassword,
+        pomodoroWork: updated.pomodoroWork,
+        pomodoroBreak: updated.pomodoroBreak,
+        theme: updated.theme,
+      });
+    }
+
     return res.json({
       success: true,
-      data: updated,
+      data: {
+        ...updated,
+        ...(token ? { token } : {}),
+      },
     });
   }
 
@@ -533,11 +671,16 @@ export class AuthController {
     const token = issueAuthSession(res, {
       id: updated.id,
       tenantId: updated.tenantId,
+      tenantName: updated.tenant?.name ?? null,
+      tenantPlan: updated.tenant?.plan ?? null,
       role: updated.role,
       email: updated.email,
       name: updated.name,
       active: updated.active,
       mustChangePassword: updated.mustChangePassword,
+      pomodoroWork: updated.settings?.pomodoroWork ?? 25,
+      pomodoroBreak: updated.settings?.pomodoroBreak ?? 5,
+      theme: updated.settings?.theme ?? "dark",
     });
 
     return res.json({
