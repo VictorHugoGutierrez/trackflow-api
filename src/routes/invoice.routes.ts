@@ -15,6 +15,17 @@ const financeGuard = [
   ),
 ];
 
+invoiceRoutes.get(
+  "/api/reports/export/csv",
+  authMiddleware,
+  requireTenant,
+  requireRole(
+    ["OWNER", "MANAGER", "MEMBER"],
+    "Permissão insuficiente para exportar o relatório CSV.",
+  ),
+  InvoiceController.exportCsv,
+);
+
 invoiceRoutes.use("/api/reports", ...financeGuard);
 invoiceRoutes.use("/api/invoices", ...financeGuard);
 
@@ -28,4 +39,3 @@ invoiceRoutes.post("/api/invoices/generate", InvoiceController.generateInvoice);
 invoiceRoutes.post("/api/invoices", InvoiceController.generateInvoice);
 invoiceRoutes.post("/api/invoices/:id/send", InvoiceController.sendInvoice);
 invoiceRoutes.patch("/api/invoices/:id/status", InvoiceController.updateStatus);
-invoiceRoutes.get("/api/reports/export/csv", ...financeGuard, InvoiceController.exportCsv);

@@ -18,6 +18,27 @@ import {
 } from "../utils/formatters.js";
 
 
+function getMonthDateRangeBRT(
+  monthStr?: string,
+): { startDate: Date; endDate: Date } | null {
+  const match = /^(\d{4})-(\d{2})$/.exec((monthStr || "").trim());
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  if (!Number.isFinite(year) || month < 1 || month > 12) return null;
+  const lastDay = new Date(year, month, 0).getDate();
+  const mm = String(month).padStart(2, "0");
+  const dd = String(lastDay).padStart(2, "0");
+  return {
+    startDate: new Date(`${year}-${mm}-01T00:00:00.000-03:00`),
+    endDate: new Date(`${year}-${mm}-${dd}T23:59:59.999-03:00`),
+  };
+}
+
+function sanitizeCsvField(val: string): string {
+  return val.replace(/[\r\n;]+/g, " ").trim();
+}
+
 interface AiInsightBody {
   clientId?: string;
   projectId?: string;
@@ -296,14 +317,24 @@ Instruções:
           ? parseReaisToCents(bodyRateReais)
           : undefined;
 
+    const monthRange =
+      !startDate && !endDate ? getMonthDateRangeBRT(monthRef) : null;
+    const rangeStart = startDate
+      ? new Date(startDate)
+      : monthRange?.startDate;
+    const rangeEnd = endDate
+      ? new Date(endDate)
+      : monthRange?.endDate;
+
     if (finalDurationSeconds === undefined || finalAmountCents === undefined) {
       const summary = await InvoiceModel.getReportSummary({
         tenantId,
         userId,
         clientId,
-        startDate: startDate ? new Date(startDate) : undefined,
-        endDate: endDate ? new Date(endDate) : undefined,
+        startDate: rangeStart && !isNaN(rangeStart.getTime()) ? rangeStart : undefined,
+        endDate: rangeEnd && !isNaN(rangeEnd.getTime()) ? rangeEnd : undefined,
         hourlyRateCents: requestedRateCents,
+        onlyUnbilled: true,
       });
 
       if (finalDurationSeconds === undefined) {
@@ -359,6 +390,30 @@ Instruções:
       amountCents: finalAmountCents,
       aiSummary: finalAiSummary,
       pdfUrl: generatedPdfUrl,
+    });
+
+    const timeEntryStartFilter: { gte?: Date; lte?: Date } = {};
+    if (rangeStart && !isNaN(rangeStart.getTime())) {
+      timeEntryStartFilter.gte = rangeStart;
+    }
+    if (rangeEnd && !isNaN(rangeEnd.getTime())) {
+      timeEntryStartFilter.lte = rangeEnd;
+    }
+
+    await prisma.timeEntry.updateMany({
+      where: {
+        tenantId,
+        billable: true,
+        invoiceId: null,
+        end: { not: null },
+        project: { clientId },
+        ...(Object.keys(timeEntryStartFilter).length > 0
+          ? { start: timeEntryStartFilter }
+          : {}),
+      },
+      data: {
+        invoiceId: invoice.id,
+      },
     });
 
     let emailResult: any = null;
@@ -488,16 +543,45 @@ Instruções:
   static async exportCsv(req: Request, res: Response) {
     const tenantId = req.user!.tenantId as string;
     const { sub: userId, role } = req.user!;
-    const { month, clientId, projectId } = req.query;
+    const { month, clientId, projectId, startDate, endDate } = req.query;
 
-    const where: any = { tenantId };
+    const where: any = {
+      tenantId,
+      end: { not: null },
+    };
     if (role === "MEMBER") where.userId = userId;
-    if (clientId) where.project = { clientId };
-    if (projectId) where.projectId = projectId;
+    if (typeof clientId === "string" && clientId) where.project = { clientId };
+    if (typeof projectId === "string" && projectId) where.projectId = projectId;
+
+    const parsedStart =
+      typeof startDate === "string" && startDate ? new Date(startDate) : undefined;
+    const parsedEnd =
+      typeof endDate === "string" && endDate ? new Date(endDate) : undefined;
+
+    if (
+      (parsedStart && !isNaN(parsedStart.getTime())) ||
+      (parsedEnd && !isNaN(parsedEnd.getTime()))
+    ) {
+      where.start = {};
+      if (parsedStart && !isNaN(parsedStart.getTime())) where.start.gte = parsedStart;
+      if (parsedEnd && !isNaN(parsedEnd.getTime())) where.start.lte = parsedEnd;
+    } else if (typeof month === "string" && month) {
+      const monthRange = getMonthDateRangeBRT(month);
+      if (monthRange) {
+        where.start = {
+          gte: monthRange.startDate,
+          lte: monthRange.endDate,
+        };
+      }
+    }
 
     const entries = await prisma.timeEntry.findMany({
       where,
-      include: { project: { include: { client: true } }, user: true },
+      include: {
+        project: { include: { client: true } },
+        user: true,
+        invoice: { select: { status: true } },
+      },
       orderBy: { start: "desc" },
     });
 
@@ -510,16 +594,31 @@ Instruções:
       const dur = formatDurationHMS(e.durationSeconds || 0);
       const rate = (e.hourlyRateCents || 0) / 100;
       const total = (e.amountCents || 0) / 100;
+      const invoiceStatusLabel = e.invoice
+        ? e.invoice.status === "pago"
+          ? "Pago"
+          : e.invoice.status === "cancelado"
+            ? "Cancelado"
+            : "Pendente"
+        : e.billable
+          ? "Não faturado"
+          : "Não faturável";
 
       const base = [
-        new Date(e.start).toLocaleDateString("pt-BR"),
-        ...(isMember ? [] : [e.project?.client?.name || "-"]),
-        e.project?.name || "-",
-        ...(isMember ? [] : [e.user?.name || "-"]),
-        e.description || "-",
+        new Date(e.start).toLocaleDateString("pt-BR", {
+          timeZone: "America/Sao_Paulo",
+        }),
+        ...(isMember
+          ? []
+          : [sanitizeCsvField(e.project?.client?.name || "-")]),
+        sanitizeCsvField(e.project?.name || "-"),
+        ...(isMember ? [] : [sanitizeCsvField(e.user?.name || "-")]),
+        sanitizeCsvField(e.description || "-"),
         dur,
         e.billable ? "Sim" : "Não",
-        ...(isMember ? [] : [rate.toFixed(2), total.toFixed(2), "Pendente"]),
+        ...(isMember
+          ? []
+          : [rate.toFixed(2), total.toFixed(2), invoiceStatusLabel]),
       ];
       return base.join(";");
     });

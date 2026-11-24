@@ -25,11 +25,20 @@ export interface ReportSummaryFilters {
   endDate?: Date;
   hourlyRateCents?: number;
   userId?: string;
+  onlyUnbilled?: boolean;
 }
 
 export class InvoiceModel {
   static async getReportSummary(filters: ReportSummaryFilters) {
-    const { tenantId, clientId, projectId, startDate, endDate, userId } = filters;
+    const {
+      tenantId,
+      clientId,
+      projectId,
+      startDate,
+      endDate,
+      userId,
+      onlyUnbilled,
+    } = filters;
 
     let defaultHourlyRateCents = filters.hourlyRateCents;
     let currency = "BRL";
@@ -53,6 +62,10 @@ export class InvoiceModel {
       tenantId,
       end: { not: null },
     };
+
+    if (onlyUnbilled) {
+      where.invoiceId = null;
+    }
 
     if (projectId) {
       where.projectId = projectId;

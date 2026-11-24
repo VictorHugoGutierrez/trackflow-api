@@ -26,9 +26,24 @@ export interface ProvisionTenantInput {
 }
 
 export class AdminModel {
-  static async getMetrics() {
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
+  static async getMetrics(period = "30d") {
+    const nowBrtDate = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/Sao_Paulo",
+    }).format(new Date());
+    const todayStart = new Date(`${nowBrtDate}T00:00:00.000-03:00`);
+
+    const normalizedPeriod = period.trim().toLowerCase();
+    let periodStart: Date | undefined;
+    if (normalizedPeriod === "today") {
+      periodStart = todayStart;
+    } else if (normalizedPeriod === "7d") {
+      periodStart = new Date(todayStart.getTime() - 6 * 24 * 60 * 60 * 1000);
+    } else if (normalizedPeriod === "30d") {
+      const [y, m] = nowBrtDate.split("-");
+      periodStart = new Date(`${y}-${m}-01T00:00:00.000-03:00`);
+    }
+
+    const periodWhere = periodStart ? { start: { gte: periodStart } } : undefined;
 
     const [
       totalTenants,
@@ -36,6 +51,8 @@ export class AdminModel {
       totalUsers,
       totalTimeEntries,
       todayDurationResult,
+      periodDurationResult,
+      periodEntriesCount,
       aiReportsCount,
     ] = await Promise.all([
       prisma.tenant.count(),
@@ -45,6 +62,13 @@ export class AdminModel {
       prisma.timeEntry.aggregate({
         where: { start: { gte: todayStart } },
         _sum: { durationSeconds: true },
+      }),
+      prisma.timeEntry.aggregate({
+        ...(periodWhere ? { where: periodWhere } : {}),
+        _sum: { durationSeconds: true },
+      }),
+      prisma.timeEntry.count({
+        ...(periodWhere ? { where: periodWhere } : {}),
       }),
       prisma.invoice.count({
         where: { aiSummary: { not: null } },
@@ -74,6 +98,9 @@ export class AdminModel {
     const todayHours = Number(
       (((todayDurationResult._sum.durationSeconds || 0) / 3600)).toFixed(1),
     );
+    const periodHours = Number(
+      (((periodDurationResult._sum.durationSeconds || 0) / 3600)).toFixed(1),
+    );
 
     const planDistribution = planCounts.map((p) => ({
       plan: p.plan,
@@ -89,6 +116,9 @@ export class AdminModel {
         totalTimeEntries,
         todayHours,
         hoursTrackedToday: todayHours,
+        period: normalizedPeriod,
+        periodHours,
+        periodEntries: periodEntriesCount,
         aiReportsGenerated: aiReportsCount,
       },
       financial: {

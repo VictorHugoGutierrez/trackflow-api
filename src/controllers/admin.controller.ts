@@ -24,8 +24,9 @@ interface ProvisionTenantBody {
 }
 
 export class AdminController {
-  static async getMetrics(_req: Request, res: Response) {
-    const metrics = await AdminModel.getMetrics();
+  static async getMetrics(req: Request, res: Response) {
+    const period = typeof req.query.period === "string" ? req.query.period : "30d";
+    const metrics = await AdminModel.getMetrics(period);
     return res.json({ success: true, data: metrics });
   }
 
