@@ -5,6 +5,7 @@ import { TeamModel } from "../models/team.model.js";
 import { prisma } from "../lib/prisma.js";
 import { AppError } from "../errors/app-error.js";
 import { parseReaisToCents } from "../utils/formatters.js";
+import { sendTeamInviteEmail } from "../services/email.service.js";
 
 function parseHourlyRateCents(
   hourlyRateCents: unknown,
@@ -101,6 +102,20 @@ export class TeamController {
       hourlyRateCents: parsedHourlyRateCents ?? 0,
     });
 
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { name: true },
+    });
+
+    const emailDispatch = await sendTeamInviteEmail({
+      memberName: result.user.name,
+      memberEmail: normalizedEmail,
+      temporaryPassword: password,
+      tenantName: tenant?.name || "TrackFlow Workspace",
+      role: uppercaseRole,
+      invitedByName: req.user?.name,
+    });
+
     if (req.path.startsWith("/dashboard") && req.accepts("html")) {
       return res.redirect("/dashboard/team");
     }
@@ -108,6 +123,10 @@ export class TeamController {
     return res.status(201).json({
       success: true,
       data: result.user,
+      meta: {
+        emailSent: emailDispatch.success,
+        resendId: emailDispatch.resendId,
+      },
     });
   }
 

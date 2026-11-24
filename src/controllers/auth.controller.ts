@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import crypto from "crypto";
 import { OAuth2Client } from "google-auth-library";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
@@ -6,7 +7,23 @@ import { Role } from "@prisma/client";
 import { UserModel } from "../models/user.model.js";
 import { AppError } from "../errors/app-error.js";
 import { parseReaisToCents } from "../utils/formatters.js";
-import { resend } from "../lib/resend.js";
+import {
+  sendPasswordChangedEmail,
+  sendPasswordRecoveryEmail,
+  sendWelcomeRegisterEmail,
+} from "../services/email.service.js";
+
+const TEMP_PASSWORD_CHARSET =
+  "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
+
+function generateTemporaryPassword(length = 8): string {
+  const bytes = crypto.randomBytes(length);
+  let password = "";
+  for (let i = 0; i < length; i++) {
+    password += TEMP_PASSWORD_CHARSET[bytes[i] % TEMP_PASSWORD_CHARSET.length];
+  }
+  return password;
+}
 
 function getGoogleClient(): OAuth2Client {
   return new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
@@ -127,6 +144,13 @@ export class AuthController {
       mustChangePassword: user.mustChangePassword,
     });
 
+    await sendWelcomeRegisterEmail({
+      userName: user.name,
+      userEmail: user.email,
+      tenantName: tenant.name,
+      plan: tenant.plan,
+    });
+
     return res.status(201).json({
       success: true,
       data: {
@@ -242,27 +266,19 @@ export class AuthController {
     const user = await UserModel.findByEmail(normalizedEmail);
 
     if (user && user.active) {
-      const temporaryPassword = Math.random().toString(36).slice(-8);
-      const passwordHash = await bcrypt.hash(temporaryPassword, 10);
-
-      await UserModel.update(user.id, {
-        password: passwordHash,
-        mustChangePassword: true,
+      const temporaryPassword = generateTemporaryPassword(8);
+      const emailResult = await sendPasswordRecoveryEmail({
+        userName: user.name,
+        userEmail: normalizedEmail,
+        temporaryPassword,
       });
 
-      try {
-        await resend.emails.send({
-          from: "TrackFlow <noreply@trackflow.com>",
-          to: normalizedEmail,
-          subject: "Recuperação de Senha - TrackFlow",
-          html: `<p>Olá, ${user.name}.</p>
-                 <p>Recebemos uma solicitação de redefinição de senha para sua conta.</p>
-                 <p>Sua nova senha temporária é: <strong>${temporaryPassword}</strong></p>
-                 <p>Ao realizar o login, será obrigatória a alteração desta senha.</p>
-                 <p>Atenciosamente,<br>Equipe TrackFlow</p>`,
+      if (emailResult.success) {
+        const passwordHash = await bcrypt.hash(temporaryPassword, 10);
+        await UserModel.update(user.id, {
+          password: passwordHash,
+          mustChangePassword: true,
         });
-      } catch (mailErr) {
-        console.warn("[forgotPassword] Falha ao enviar e-mail via Resend:", mailErr);
       }
     }
 
@@ -306,6 +322,11 @@ export class AuthController {
       name: updatedUser.name,
       active: updatedUser.active,
       mustChangePassword: false,
+    });
+
+    await sendPasswordChangedEmail({
+      userName: updatedUser.name,
+      userEmail: updatedUser.email,
     });
 
     return res.json({

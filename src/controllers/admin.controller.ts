@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { AdminModel } from "../models/admin.model.js";
 import { prisma } from "../lib/prisma.js";
 import { AppError } from "../errors/app-error.js";
+import { sendTenantProvisionedEmail } from "../services/email.service.js";
 
 interface TenantParams {
   id: string;
@@ -104,9 +105,23 @@ export class AdminController {
       ownerPasswordHash: passwordHash,
     });
 
+    const emailDispatch = await sendTenantProvisionedEmail({
+      ownerName: result.owner.name,
+      ownerEmail: normalizedEmail,
+      temporaryPassword: ownerPassword,
+      tenantName: result.tenant.name,
+      plan: result.tenant.plan,
+    });
+
     return res.status(201).json({
       success: true,
-      data: result,
+      data: {
+        ...result,
+        email: {
+          sent: emailDispatch.success,
+          resendId: emailDispatch.resendId,
+        },
+      },
     });
   }
 

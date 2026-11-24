@@ -1,11 +1,14 @@
 import { Request, Response } from "express";
-import { Resend } from "resend";
 import { InvoiceStatus } from "@prisma/client";
 import React from "react";
 import { InvoiceModel } from "../models/invoice.model.js";
 import { prisma } from "../lib/prisma.js";
 import { runOllamaChat } from "../lib/ollama.js";
 import { AppError } from "../errors/app-error.js";
+import {
+  buildInvoiceEmailHtml,
+  sendInvoiceEmail,
+} from "../services/email.service.js";
 import {
   calculateAmountCents,
   formatCurrencyBRL,
@@ -52,91 +55,6 @@ interface SendInvoiceBody {
   to?: string;
   recipientEmail?: string;
   subject?: string;
-}
-
-function createResendClient(): Resend {
-  const resendApiKey = process.env.RESEND_API_KEY;
-  if (!resendApiKey) {
-    throw new AppError(
-      "CONFIG_ERROR",
-      "Variável de ambiente RESEND_API_KEY não configurada.",
-      500,
-    );
-  }
-  return new Resend(resendApiKey);
-}
-
-function buildInvoiceHtml(params: {
-  invoiceId?: string;
-  tenantName: string;
-  clientName: string;
-  monthRef: string;
-  durationSeconds: number;
-  amountCents: number;
-  status: string;
-  aiSummary?: string | null;
-}) {
-  const formattedHours = formatDurationHMS(params.durationSeconds);
-  const formattedValue = formatCurrencyBRL(params.amountCents);
-
-  return `<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-  <meta charset="UTF-8" />
-  <title>Fatura TrackFlow - ${params.monthRef}</title>
-</head>
-<body style="font-family: Arial, sans-serif; color: #1e293b; max-width: 680px; margin: 0 auto; padding: 24px; background-color: #f8fafc;">
-  <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 32px;">
-    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #10b981; padding-bottom: 16px; margin-bottom: 24px;">
-      <div>
-        <h1 style="margin: 0; color: #0f172a; font-size: 24px;">TrackFlow</h1>
-        <p style="margin: 4px 0 0; color: #64748b; font-size: 14px;">Emitido por: <strong>${params.tenantName}</strong></p>
-      </div>
-      <div style="text-align: right;">
-        <span style="background: #ecfdf5; color: #047857; padding: 6px 12px; border-radius: 999px; font-size: 12px; font-weight: bold; text-transform: uppercase;">
-          ${params.status}
-        </span>
-        <p style="margin: 8px 0 0; color: #64748b; font-size: 13px;">Ref: <strong>${params.monthRef}</strong></p>
-      </div>
-    </div>
-
-    <div style="margin-bottom: 24px;">
-      <p style="margin: 0 0 4px; color: #64748b; font-size: 12px; text-transform: uppercase;">Cliente</p>
-      <h2 style="margin: 0; color: #0f172a; font-size: 18px;">${params.clientName}</h2>
-    </div>
-
-    <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px;">
-      <thead>
-        <tr style="background: #f1f5f9; text-align: left;">
-          <th style="padding: 12px; font-size: 13px; color: #475569; border-bottom: 1px solid #cbd5e1;">Descrição</th>
-          <th style="padding: 12px; font-size: 13px; color: #475569; border-bottom: 1px solid #cbd5e1; text-align: right;">Tempo Apurado</th>
-          <th style="padding: 12px; font-size: 13px; color: #475569; border-bottom: 1px solid #cbd5e1; text-align: right;">Valor Total</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td style="padding: 16px 12px; border-bottom: 1px solid #e2e8f0; font-size: 14px;">Prestação de Serviços (${params.monthRef})</td>
-          <td style="padding: 16px 12px; border-bottom: 1px solid #e2e8f0; font-size: 14px; text-align: right; font-weight: bold;">${formattedHours}</td>
-          <td style="padding: 16px 12px; border-bottom: 1px solid #e2e8f0; font-size: 16px; text-align: right; font-weight: bold; color: #047857;">${formattedValue}</td>
-        </tr>
-      </tbody>
-    </table>
-
-    ${
-      params.aiSummary
-        ? `<div style="background: #f8fafc; border-left: 4px solid #10b981; padding: 16px; border-radius: 6px; margin-bottom: 24px;">
-            <h3 style="margin: 0 0 8px; font-size: 14px; color: #0f172a;">Resumo Executivo das Entregas (IA)</h3>
-            <p style="margin: 0; font-size: 14px; line-height: 1.6; color: #334155;">${params.aiSummary.replace(/\n/g, "<br/>")}</p>
-          </div>`
-        : ""
-    }
-
-    <p style="margin: 24px 0 0; font-size: 12px; color: #94a3b8; text-align: center;">
-      Documento gerado automaticamente pela plataforma TrackFlow SaaS.
-    </p>
-  </div>
-</body>
-</html>`;
 }
 
 export class InvoiceController {
@@ -419,7 +337,7 @@ Instruções:
       }
     }
 
-    const htmlDocument = buildInvoiceHtml({
+    const htmlDocument = buildInvoiceEmailHtml({
       tenantName: tenant?.name || "TrackFlow Workspace",
       clientName: client.name,
       monthRef,
@@ -450,16 +368,19 @@ Instruções:
         (client.contact && client.contact.includes("@") ? client.contact : null) ||
         "hugovictorgutierrez@gmail.com";
 
-      const resend = createResendClient();
-
-      const sent = await resend.emails.send({
-        from: "onboarding@resend.dev",
+      emailResult = await sendInvoiceEmail({
+        invoiceId: invoice.id,
         to: targetEmail,
         subject: `Fatura TrackFlow - ${monthRef} - ${client.name}`,
-        html: htmlDocument,
+        tenantName: tenant?.name || "TrackFlow Workspace",
+        clientName: client.name,
+        monthRef,
+        durationSeconds: finalDurationSeconds,
+        amountCents: finalAmountCents,
+        status: "pendente",
+        aiSummary: finalAiSummary,
+        throwOnError: false,
       });
-
-      emailResult = sent;
     }
 
     return res.status(201).json({
@@ -496,8 +417,10 @@ Instruções:
         : null) ||
       "hugovictorgutierrez@gmail.com";
 
-    const htmlDocument = buildInvoiceHtml({
+    const emailResult = await sendInvoiceEmail({
       invoiceId: invoice.id,
+      to: targetEmail,
+      subject,
       tenantName: invoice.tenant?.name || "TrackFlow Workspace",
       clientName: invoice.client.name,
       monthRef: invoice.monthRef,
@@ -505,34 +428,15 @@ Instruções:
       amountCents: invoice.amountCents,
       status: invoice.status,
       aiSummary: invoice.aiSummary,
+      throwOnError: true,
     });
-
-    const resend = createResendClient();
-
-    const emailResponse = await resend.emails.send({
-      from: "onboarding@resend.dev",
-      to: targetEmail,
-      subject:
-        subject ||
-        `Fatura TrackFlow (${invoice.monthRef}) - ${invoice.client.name}`,
-      html: htmlDocument,
-    });
-
-    if (emailResponse.error) {
-      throw new AppError(
-        "EMAIL_SEND_FAILED",
-        emailResponse.error.message || "Falha ao disparar o e-mail via Resend.",
-        400,
-        emailResponse.error,
-      );
-    }
 
     return res.json({
       success: true,
       data: {
         message: "Fatura enviada por e-mail com sucesso.",
         to: targetEmail,
-        resendId: emailResponse.data?.id || null,
+        resendId: emailResult.resendId,
         invoice,
       },
     });

@@ -1,5 +1,6 @@
 import { prisma } from "../lib/prisma.js";
 import { checkOllamaHealth } from "../lib/ollama.js";
+import { getRecentEmailEvents } from "../lib/resend.js";
 import { Role } from "@prisma/client";
 
 interface UpdateTenantInput {
@@ -301,7 +302,13 @@ export class AdminModel {
       status: string;
       message: string;
       timestamp: string;
-    }> = [];
+    }> = getRecentEmailEvents().map((ev) => ({
+      id: ev.id,
+      type: ev.type,
+      status: ev.status,
+      message: ev.message,
+      timestamp: ev.timestamp,
+    }));
 
     if (ollamaHealth.status !== "connected") {
       recentEvents.push({
