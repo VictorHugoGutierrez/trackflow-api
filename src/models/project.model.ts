@@ -30,14 +30,48 @@ function computeOverBudgetStatus(
   currentStatus: ProjectStatus,
   estimatedSeconds: number | null,
   totalSecondsSpent: number,
+  budgetCents: number | null,
+  accumulatedCostCents: number,
 ): ProjectStatus {
   if (currentStatus === ProjectStatus.COMPLETED) {
     return ProjectStatus.COMPLETED;
   }
-  if (estimatedSeconds && estimatedSeconds > 0 && totalSecondsSpent >= estimatedSeconds) {
+  const overHours = Boolean(
+    estimatedSeconds && estimatedSeconds > 0 && totalSecondsSpent >= estimatedSeconds,
+  );
+  const overBudget = Boolean(
+    budgetCents && budgetCents > 0 && accumulatedCostCents >= budgetCents,
+  );
+  if (overHours || overBudget) {
     return ProjectStatus.OVER_BUDGET;
   }
   return ProjectStatus.ACTIVE;
+}
+
+function calculateProjectTotals(
+  entries: Array<{
+    durationSeconds: number | null;
+    billable: boolean;
+    amountCents: number;
+    user?: { settings?: { hourlyRateCents: number } | null } | null;
+  }>,
+) {
+  let totalSecondsSpent = 0;
+  let accumulatedCostCents = 0;
+
+  for (const entry of entries) {
+    const secs = entry.durationSeconds || 0;
+    totalSecondsSpent += secs;
+    if (entry.billable) {
+      const rateCents = entry.user?.settings?.hourlyRateCents ?? 0;
+      accumulatedCostCents +=
+        entry.amountCents > 0
+          ? entry.amountCents
+          : calculateAmountCents(secs, rateCents);
+    }
+  }
+
+  return { totalSecondsSpent, accumulatedCostCents };
 }
 
 export class ProjectModel {
@@ -59,7 +93,7 @@ export class ProjectModel {
 
   static async findAllByTenant(tenantId: string) {
     const projects = await prisma.project.findMany({
-      where: { tenantId },
+      where: { tenantId, active: true },
       orderBy: { createdAt: "desc" },
       include: {
         client: true,
@@ -67,6 +101,8 @@ export class ProjectModel {
           where: { end: { not: null } },
           select: {
             durationSeconds: true,
+            billable: true,
+            amountCents: true,
             user: {
               select: {
                 settings: {
@@ -84,15 +120,9 @@ export class ProjectModel {
     const statusUpdates: Promise<unknown>[] = [];
 
     const enriched = projects.map((project) => {
-      let totalSecondsSpent = 0;
-      let accumulatedCostCents = 0;
-
-      for (const entry of project.timeEntries) {
-        const secs = entry.durationSeconds || 0;
-        const rateCents = entry.user?.settings?.hourlyRateCents ?? 0;
-        totalSecondsSpent += secs;
-        accumulatedCostCents += calculateAmountCents(secs, rateCents);
-      }
+      const { totalSecondsSpent, accumulatedCostCents } = calculateProjectTotals(
+        project.timeEntries,
+      );
 
       let progressPercent = 0;
       if (project.estimatedSeconds && project.estimatedSeconds > 0) {
@@ -105,6 +135,8 @@ export class ProjectModel {
         project.status,
         project.estimatedSeconds,
         totalSecondsSpent,
+        project.budgetCents,
+        accumulatedCostCents,
       );
 
       if (effectiveStatus !== project.status) {
@@ -139,7 +171,20 @@ export class ProjectModel {
       include: {
         timeEntries: {
           where: { end: { not: null } },
-          select: { durationSeconds: true },
+          select: {
+            durationSeconds: true,
+            billable: true,
+            amountCents: true,
+            user: {
+              select: {
+                settings: {
+                  select: {
+                    hourlyRateCents: true,
+                  },
+                },
+              },
+            },
+          },
         },
       },
     });
@@ -148,15 +193,16 @@ export class ProjectModel {
       return;
     }
 
-    const totalSecondsSpent = project.timeEntries.reduce(
-      (sum, entry) => sum + (entry.durationSeconds || 0),
-      0,
+    const { totalSecondsSpent, accumulatedCostCents } = calculateProjectTotals(
+      project.timeEntries,
     );
 
     const effectiveStatus = computeOverBudgetStatus(
       project.status,
       project.estimatedSeconds,
       totalSecondsSpent,
+      project.budgetCents,
+      accumulatedCostCents,
     );
 
     if (effectiveStatus !== project.status) {
@@ -193,11 +239,24 @@ export class ProjectModel {
     status: "ACTIVE" | "COMPLETED",
   ) {
     const project = await prisma.project.findFirst({
-      where: { id, tenantId },
+      where: { id, tenantId, active: true },
       include: {
         timeEntries: {
           where: { end: { not: null } },
-          select: { durationSeconds: true },
+          select: {
+            durationSeconds: true,
+            billable: true,
+            amountCents: true,
+            user: {
+              select: {
+                settings: {
+                  select: {
+                    hourlyRateCents: true,
+                  },
+                },
+              },
+            },
+          },
         },
       },
     });
@@ -208,14 +267,15 @@ export class ProjectModel {
 
     let nextStatus: ProjectStatus = ProjectStatus.COMPLETED;
     if (status === "ACTIVE") {
-      const totalSecondsSpent = project.timeEntries.reduce(
-        (sum, entry) => sum + (entry.durationSeconds || 0),
-        0,
+      const { totalSecondsSpent, accumulatedCostCents } = calculateProjectTotals(
+        project.timeEntries,
       );
       nextStatus = computeOverBudgetStatus(
         ProjectStatus.ACTIVE,
         project.estimatedSeconds,
         totalSecondsSpent,
+        project.budgetCents,
+        accumulatedCostCents,
       );
     }
 

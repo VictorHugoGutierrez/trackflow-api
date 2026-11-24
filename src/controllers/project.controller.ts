@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { ProjectStatus } from "@prisma/client";
 import { ProjectModel } from "../models/project.model.js";
+import { prisma } from "../lib/prisma.js";
 import { AppError } from "../errors/app-error.js";
 import { parseReaisToCents } from "../utils/formatters.js";
 
@@ -78,6 +79,20 @@ export class ProjectController {
       );
     }
 
+    if (data.clientId) {
+      const client = await prisma.client.findFirst({
+        where: { id: data.clientId, tenantId, active: true },
+        select: { id: true },
+      });
+      if (!client) {
+        throw new AppError(
+          "CLIENT_NOT_FOUND",
+          "Cliente não encontrado ou inativo neste workspace.",
+          404,
+        );
+      }
+    }
+
     const budgetCents = resolveNullableInt(
       data.budgetCents,
       data.budgetReais,
@@ -139,6 +154,27 @@ export class ProjectController {
       );
     }
 
+    const normalizedClientId =
+      data.clientId === undefined
+        ? undefined
+        : data.clientId
+          ? String(data.clientId).trim()
+          : null;
+
+    if (normalizedClientId) {
+      const client = await prisma.client.findFirst({
+        where: { id: normalizedClientId, tenantId, active: true },
+        select: { id: true },
+      });
+      if (!client) {
+        throw new AppError(
+          "CLIENT_NOT_FOUND",
+          "Cliente não encontrado ou inativo neste workspace.",
+          404,
+        );
+      }
+    }
+
     const budgetCents = resolveNullableInt(
       data.budgetCents,
       data.budgetReais,
@@ -154,7 +190,7 @@ export class ProjectController {
       id,
       tenantId,
       name: data.name,
-      clientId: data.clientId,
+      clientId: normalizedClientId,
       budgetCents,
       estimatedSeconds,
       status: data.status,

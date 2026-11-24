@@ -22,16 +22,22 @@ export class ClientController {
     req: Request<{}, {}, CreateClientBody>,
     res: Response,
   ) {
-    const data = req.body;
+    const data = req.body || {};
     const tenantId = req.user!.tenantId as string;
 
-    if (!data.name) {
+    if (!data.name || typeof data.name !== "string" || !data.name.trim()) {
       throw new AppError("NAME_REQUIRED", "O campo 'name' é obrigatório", 400);
     }
 
+    const sanitizedContact =
+      typeof data.contact === "string" && data.contact.trim()
+        ? data.contact.trim()
+        : undefined;
+
     const client = await ClientModel.createClient({
-      ...data,
       tenantId,
+      name: data.name.trim(),
+      contact: sanitizedContact,
     });
 
     return res.status(201).json({ success: true, data: client });
@@ -66,13 +72,33 @@ export class ClientController {
     res: Response,
   ) {
     const { id } = req.params;
-    const data = req.body;
+    const data = req.body || {};
     const tenantId = req.user!.tenantId as string;
 
+    if (
+      data.name !== undefined &&
+      (typeof data.name !== "string" || !data.name.trim())
+    ) {
+      throw new AppError("NAME_REQUIRED", "O campo 'name' não pode ficar vazio", 400);
+    }
+
+    const sanitizedName =
+      typeof data.name === "string" ? data.name.trim() : undefined;
+    const sanitizedContact =
+      data.contact === undefined
+        ? undefined
+        : typeof data.contact === "string" && data.contact.trim()
+          ? data.contact.trim()
+          : null;
+    const sanitizedActive =
+      typeof data.active === "boolean" ? data.active : undefined;
+
     const result = await ClientModel.alterClient({
-      ...data,
       id,
       tenantId,
+      name: sanitizedName,
+      contact: sanitizedContact,
+      active: sanitizedActive,
     });
 
     if (result.count === 0) {

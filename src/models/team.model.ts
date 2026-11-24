@@ -20,7 +20,7 @@ export interface UpdateMemberInput {
 export class TeamModel {
   static async listMembers(tenantId: string) {
     const members = await prisma.user.findMany({
-      where: { tenantId },
+      where: { tenantId, active: true },
       select: {
         id: true,
         name: true,
@@ -72,6 +72,7 @@ export class TeamModel {
       where: {
         id,
         tenantId,
+        active: true,
       },
       include: {
         settings: {
@@ -187,7 +188,7 @@ export class TeamModel {
 
   static async getMemberActivity(id: string, tenantId: string) {
     const member = await prisma.user.findFirst({
-      where: { id, tenantId },
+      where: { id, tenantId, active: true },
       select: {
         id: true,
         name: true,

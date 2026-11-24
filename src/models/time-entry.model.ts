@@ -49,12 +49,21 @@ interface ListTimeEntriesFilter {
   endDate?: Date;
   projectId?: string;
   clientId?: string;
+  scope?: "self" | "tenant";
+  userId?: string;
 }
 
 const TIME_ENTRY_INCLUDE = {
   project: {
     include: {
       client: true,
+    },
+  },
+  user: {
+    select: {
+      id: true,
+      name: true,
+      email: true,
     },
   },
 } as const;
@@ -116,7 +125,11 @@ export class TimeEntryModel {
     const effectiveBillable =
       data.billable !== undefined ? data.billable : entry.billable;
     const effectiveProjectId =
-      data.projectId !== undefined ? data.projectId : entry.projectId;
+      data.projectId !== undefined
+        ? data.projectId
+          ? data.projectId
+          : null
+        : entry.projectId;
 
     const hourlyRateCents = effectiveBillable
       ? await getUserHourlyRateCents(data.userId)
@@ -265,13 +278,28 @@ export class TimeEntryModel {
     userId: string,
     filters: ListTimeEntriesFilter = {},
   ) {
-    const { limit = 50, startDate, endDate, projectId, clientId } = filters;
+    const {
+      limit = 50,
+      startDate,
+      endDate,
+      projectId,
+      clientId,
+      scope = "self",
+      userId: filterUserId,
+    } = filters;
 
     const where: Record<string, unknown> = {
       tenantId,
-      userId,
       end: { not: null },
     };
+
+    if (scope === "tenant") {
+      if (filterUserId) {
+        where.userId = filterUserId;
+      }
+    } else {
+      where.userId = userId;
+    }
 
     if (startDate || endDate) {
       const startFilter: { gte?: Date; lte?: Date } = {};

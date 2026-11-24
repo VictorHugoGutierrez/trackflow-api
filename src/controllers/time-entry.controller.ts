@@ -12,6 +12,30 @@ async function getUserHourlyRateCents(userId: string): Promise<number> {
   return settings?.hourlyRateCents ?? 0;
 }
 
+async function validateTargetProject(
+  tenantId: string,
+  projectId?: string | null,
+) {
+  if (!projectId) return;
+
+  const project = await prisma.project.findFirst({
+    where: { id: projectId, tenantId, active: true },
+    select: { id: true, status: true },
+  });
+
+  if (!project) {
+    throw new AppError("PROJECT_NOT_FOUND", "Projeto não encontrado ou inativo.", 404);
+  }
+
+  if (project.status === ProjectStatus.COMPLETED) {
+    throw new AppError(
+      "PROJECT_COMPLETED",
+      "Não é possível registrar ou vincular horas em um projeto concluído.",
+      400,
+    );
+  }
+}
+
 interface StartBody {
   projectId?: string;
   description?: string;
@@ -51,22 +75,7 @@ export class TimeEntryController {
     const body = req.body || {};
 
     if (body.projectId) {
-      const project = await prisma.project.findFirst({
-        where: { id: body.projectId, tenantId },
-        select: { id: true, status: true },
-      });
-
-      if (!project) {
-        throw new AppError("PROJECT_NOT_FOUND", "Projeto não encontrado.", 404);
-      }
-
-      if (project.status === ProjectStatus.COMPLETED) {
-        throw new AppError(
-          "PROJECT_COMPLETED",
-          "Não é possível iniciar o cronômetro em um projeto concluído.",
-          400,
-        );
-      }
+      await validateTargetProject(tenantId, body.projectId);
     }
 
     const active = await TimeEntryModel.findActive(tenantId, userId);
@@ -99,6 +108,10 @@ export class TimeEntryController {
     const userId = req.user!.sub;
     const { id } = req.params;
     const body = req.body || {};
+
+    if (body.projectId) {
+      await validateTargetProject(tenantId, body.projectId);
+    }
 
     const updated = await TimeEntryModel.stop({
       id,
@@ -170,6 +183,10 @@ export class TimeEntryController {
       );
     }
 
+    if (body.projectId) {
+      await validateTargetProject(tenantId, body.projectId);
+    }
+
     const entry = await TimeEntryModel.createManual({
       tenantId,
       userId,
@@ -229,12 +246,23 @@ export class TimeEntryController {
       );
     }
 
+    const normalizedProjectId =
+      body.projectId === undefined
+        ? undefined
+        : body.projectId
+          ? String(body.projectId).trim()
+          : null;
+
+    if (normalizedProjectId) {
+      await validateTargetProject(tenantId, normalizedProjectId);
+    }
+
     const updated = await TimeEntryModel.update({
       id,
       tenantId,
       userId,
       description: body.description,
-      projectId: body.projectId,
+      projectId: normalizedProjectId,
       billable: body.billable,
       start: startDate,
       end: endDate,
@@ -284,9 +312,25 @@ export class TimeEntryController {
       ? new Date(String(req.query.endDate))
       : undefined;
     const projectId =
-      typeof req.query.projectId === "string" ? req.query.projectId : undefined;
+      typeof req.query.projectId === "string" && req.query.projectId
+        ? req.query.projectId
+        : undefined;
     const clientId =
-      typeof req.query.clientId === "string" ? req.query.clientId : undefined;
+      typeof req.query.clientId === "string" && req.query.clientId
+        ? req.query.clientId
+        : undefined;
+
+    const isManagerOrOwner = ["OWNER", "MANAGER", "SUPER_ADMIN"].includes(
+      req.user!.role,
+    );
+    const scope =
+      isManagerOrOwner && req.query.scope === "tenant" ? "tenant" : "self";
+    const filterUserId =
+      scope === "tenant" &&
+      typeof req.query.userId === "string" &&
+      req.query.userId
+        ? req.query.userId
+        : undefined;
 
     const entries = await TimeEntryModel.listRecent(tenantId, userId, {
       limit: isNaN(limit) ? 50 : limit,
@@ -294,6 +338,8 @@ export class TimeEntryController {
       endDate: endDate && !isNaN(endDate.getTime()) ? endDate : undefined,
       projectId,
       clientId,
+      scope,
+      userId: filterUserId,
     });
 
     return res.json({

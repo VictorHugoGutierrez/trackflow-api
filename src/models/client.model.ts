@@ -3,14 +3,14 @@ import { prisma } from "../lib/prisma.js"
 interface CreateClientInput{
     tenantId: string, 
     name: string, 
-    contact?: string
+    contact?: string | null
 }
 
 interface AlterClientInput{
     id: string,
     tenantId: string,
     name?: string,
-    contact?: string,
+    contact?: string | null,
     active?: boolean
 }
 
@@ -32,13 +32,14 @@ export class ClientModel {
     }   
 
     static async alterClient(data: AlterClientInput){
+        const updateData: { name?: string; contact?: string | null; active?: boolean } = {};
+        if (data.name !== undefined) updateData.name = data.name;
+        if (data.contact !== undefined) updateData.contact = data.contact;
+        if (data.active !== undefined) updateData.active = data.active;
+
         return prisma.client.updateMany({
             where: { id: data.id, tenantId: data.tenantId },
-            data:{
-                name: data.name,
-                contact: data.contact,
-                active: data.active
-            }
+            data: updateData
         })
     }
 
